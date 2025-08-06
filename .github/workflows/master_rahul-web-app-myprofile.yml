@@ -4,11 +4,11 @@
 
 name: Build and deploy Python app to Azure Web App - rahul-web-app-myprofile
 
-# on:
-#   push:
-#     branches:
-#       - master
-#   workflow_dispatch:
+on:
+   push:
+     branches:
+       - master
+   workflow_dispatch:
 
 jobs:
   build:
@@ -77,3 +77,4 @@ jobs:
           slot-name: 'Production'
 
           
+
