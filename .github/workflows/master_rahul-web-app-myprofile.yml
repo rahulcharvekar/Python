@@ -77,8 +77,10 @@ jobs:
           app-name: 'rahul-web-app-myprofile'
           slot-name: 'Production'
           package: release.zip
+          enable-oryx-build: false
 
           
+
 
 
 
