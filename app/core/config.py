@@ -3,7 +3,7 @@ from pathlib import Path
 
 class Settings(BaseSettings):
     # Base paths
-    BASE_DIR: Path = Path(__file__).resolve().parent.parent
+    BASE_DIR: Path = Path.cwd()
 
     # File paths
     DB_PATH: Path = BASE_DIR / "db_store" / "file_registry.db"
