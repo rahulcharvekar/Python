@@ -1,2 +1,8 @@
 fastapi
 uvicorn
+hashlib
+langchain_community
+langchain
+langchain_huggingface
+pydantic
+sqlite3 
