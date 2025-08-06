@@ -3,4 +3,5 @@ uvicorn
 langchain_community
 langchain
 langchain_huggingface
-pydantic 
+pydantic
+python-multipart
