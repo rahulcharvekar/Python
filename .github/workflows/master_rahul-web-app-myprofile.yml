@@ -75,6 +75,8 @@ jobs:
         with:
           app-name: 'rahul-web-app-myprofile'
           slot-name: 'Production'
+          package: release.zip
 
           
+
 
