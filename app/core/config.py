@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     DB_PATH: Path = BASE_DIR / "db_store" / "file_registry.db"
     VECTOR_STORE_DIR: Path = BASE_DIR / "vector_store"
     UPLOAD_DIR: Path = BASE_DIR / "uploads"
+    LOG_DIR: Path = BASE_DIR / "logs"
 
 
     class Config:
