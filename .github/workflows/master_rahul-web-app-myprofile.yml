@@ -5,10 +5,10 @@
 name: Build and deploy Python app to Azure Web App - rahul-web-app-myprofile
 
 on:
-   push:
-     branches:
-       - master
-   workflow_dispatch:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
 
 jobs:
   build:
@@ -34,20 +34,12 @@ jobs:
         
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
-      - name: Create release.zip with correct structure
-        run: |
-          mkdir package
-          cp -r app requirements.txt package/
-          cd package
-          zip -r ../release.zip .
-
-
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
         with:
           name: python-app
           path: |
-            release.zip
+            .
             !venv/
 
   deploy:
@@ -62,17 +54,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: python-app
-
-      - name: Unzip artifact for deployment
-        run: unzip release.zip
-
       
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_8109FFFB4DEE4F8B9128655279D4FCB9 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_E90D600620844BA59B9F878E44BBCAAA }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_8B44AEA20725462FA73D28A1B2E2AAEB }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_828707856C2245A48AA4746C99870D36 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_A14DA3CE09464FF0A297F7AB37C8F8F6 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_3C2874F3C95E4494BBC97EBC20D0370A }}
 
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
@@ -80,9 +68,4 @@ jobs:
         with:
           app-name: 'rahul-web-app-myprofile'
           slot-name: 'Production'
-          package: release.zip
-
           
-
-
-
