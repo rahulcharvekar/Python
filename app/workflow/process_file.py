@@ -16,6 +16,7 @@ def handle_uploaded_file(file_path: str) -> str:
         if(file_registry.get_file_by_hash(hash_file_value)):
             msg = f"File \"{file_name}\" already exists in the registry."
         else:
+            logger.info(f"File {file_name} does not exist in the registry, adding it.")
             file_registry.add_file_record(
                 file_name,
                 file_hash=hash_file_value,
