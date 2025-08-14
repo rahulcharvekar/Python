@@ -1,40 +1,65 @@
 from app.services import file_registry_services as file_registry
-from app.services.vectordb_services import create_vector_store
+from app.services import upload_service as upload_service
 from app.utils.fileops.fileutils import hash_file
-from pathlib import Path
+from app.core.config import settings
 from app.utils.Logging.logger import logger
-    
+from app.utils.exception.ecxeption_handler import raise_conflict
+import json     
 
-def handle_uploaded_file(file_path: str) -> str:
+async def handle_uploaded_file(file):
     try:
-        # logic to hash file, check vector DB, etc.
-        file_registry.init_db()    
+        # Save the uploaded file
+        file_path = await upload_service.upload_file(file) 
+        logger.info(f"File saved at: {file_path}")
+        
+        # Get the file name and hash it        
+        logger.info(f"File name: {file.filename}")  
         hash_file_value = hash_file(file_path)
-        file_name = Path(file_path).name
-        print(f"File name: {file_name}")
-        logger.info(f"output : {file_registry.get_file_by_hash(hash_file_value)}")
-        if(file_registry.get_file_by_hash(hash_file_value)):
-            msg = f"File \"{file_name}\" already exists in the registry."
+        logger.info(f"Hash of the file: {hash_file_value}")
+ 
+
+        # Initialize the file registry database if it doesn't exist
+        if not file_registry.get_file_by_hash(hash_file_value):
+            logger.info("Initializing file registry database.")
+            file_registry.init_db()    
+
+        # Check if the file already exists in the registry   
+        if(file_registry.get_file_by_hash(hash_file_value)):            
+            msg = f"File \"{file.filename}\" already exists in the registry."         
         else:
-            logger.info(f"File {file_name} does not exist in the registry, adding it.")
+            logger.info(f"File {file} does not exist in the registry, adding it.")
             file_registry.add_file_record(
-                file_name,
+                file.filename,
                 file_hash=hash_file_value,
                 vector_path=f"vector_store/{hash_file_value}"
             )
-            print("File added to the registry.")    
-            print(f"Hash of the file: {hash_file_value}")
-            # Create a vector store from the PDF file
-            create_vector_store(file_path, hash_value=hash_file_value)
-            print("Vector store created successfully.")
-            msg = f"File : {file_name}, uploaded successfully."
+            logger.info(f"File {file.filename} added to the registry.")    
+            
+            msg = f"File : {file.filename}, uploaded successfully."
+        
+        logger.info(f"File upload result: {msg}")
+        return msg
     except Exception as e:
-        logger.error(f"Error processing file {file_path}: {e}")
-        msg = f"Error processing file {file_path}: {e}"
-    return msg
+        logger.error(f"Error processing file {file_path}: {e}")    
+        msg = f"Error processing file {file.filename}: {e}"        
+        raise_conflict(msg)           
 
 
-if __name__ == "__main__":
-    file_registry.delete_file_record("HSRP.pdf")
-    handle_uploaded_file("C:/Users/Admin/Documents/HSRP.pdf")
+def get_all_files() -> list:
+    try:
+        # Get all files from the registry
+        rows = file_registry.get_all_files()
+        if not rows:
+            logger.info("No files found in the registry.")
+            return []
+        files = [dict(row) for row in rows]     
+        logger.info(f"Files found in the registry")
+        return {"files": files}        
+    except Exception as e:
+        logger.error(f"Error retrieving files from the registry: {e}")
+        raise_conflict("Error retrieving files from the registry")  
+
+
+if __name__ == "__main__":    
+    get_all_files()
     print("Process completed.")

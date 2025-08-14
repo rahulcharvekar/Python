@@ -1,19 +1,27 @@
+# main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import upload_file
+from app.api.router import router  # your combined router
 
-app = FastAPI()
+def create_app() -> FastAPI:
+    app = FastAPI(title="AI Assistant", version="1.0.0")
 
-# Allow all origins (for development)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://rahulcharvekar.github.io",
-                   "http://localhost:5173"],  # Change this to specific domains in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    # CORS must be added to the SAME app instance that serves requests
+    DEV_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://rahulcharvekar.github.io",
+    ]
 
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=DEV_ORIGINS,   # specific origins (required when credentials=True)
+        allow_credentials=True,      # set False if you don’t send cookies/auth
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
-# Include routers
-app.include_router(upload_file.router)
+    app.include_router(router)
+    return app
+
+app = create_app()

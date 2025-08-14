@@ -1,31 +1,21 @@
-#!/bin/bash
-set -euo pipefail
+#!/usr/bin/env sh
+set -e  # exit if any command fails
 
-APP_HOME="/home/site/wwwroot"
-VENV="/home/pyenv"
-REQ_FILE="${APP_HOME}/requirements.txt"
-HASH_FILE="/home/requirements.sha256"
+# --- Your custom startup commands ---
+# echo "Creating folder in ephemeral storage..."
+# mkdir -p /mnt/storage/uploads
+# mkdir -p /mnt/storage/logs
+# mkdir -p /mnt/storage/db_store
+# mkdir -p /mnt/storage/vector_store`
 
-# 1) One-time venv (lives under /home, which is persistent across deploys)
-if [ ! -d "${VENV}" ]; then
-  echo "[init] creating venv at ${VENV}"
-  python3 -m venv "${VENV}"
-  "${VENV}/bin/python" -m pip install --upgrade pip wheel
-fi
+# chmod -R 775 /mnt/storage/uploads
+# chmod -R 775 /mnt/storage/logs
+# chmod -R 775 /mnt/storage/db_store
+# chmod -R 775 /mnt/storage/vector_store
 
-# 2) Install/skip dependencies based on requirements.txt hash
-if [ -f "${REQ_FILE}" ]; then
-  CUR_HASH=$(sha256sum "${REQ_FILE}" | awk '{print $1}')
-  if [ ! -f "${HASH_FILE}" ] || [ "$(cat ${HASH_FILE})" != "${CUR_HASH}" ]; then
-    echo "[deps] requirements changed → installing…"
-    "${VENV}/bin/pip" install --upgrade -r "${REQ_FILE}"
-    echo "${CUR_HASH}" > "${HASH_FILE}"
-  else
-    echo "[deps] requirements unchanged → skipping pip install."
-  fi
-else
-  echo "[warn] ${REQ_FILE} not found; skipping dependency install."
-fi
+# You can add other tasks here, e.g., data prep, warmup
+# python scripts/warmup.py
 
-# 3) Start your app (FastAPI/Gunicorn)
-exec "${VENV}/bin/gunicorn" -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000
+# --- Finally, start your main app ---
+echo "Starting application..."
+exec uvicorn main:app --host 0.0.0.0 --port 8000
