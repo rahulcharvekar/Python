@@ -1,71 +1,53 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
-
-name: Build and deploy Python app to Azure Web App - rahul-webapp-clean
+name: Deploy FastAPI to Azure Web App (zip + persistent venv)
 
 on:
   push:
-    branches:
-      - master
+    branches: [ master ]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python version
-        uses: actions/setup-python@v5
+      # Cache speeds up tests/lint locally in CI only (not App Service)
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+          cache: 'pip'
 
-      - name: Create and start virtual environment
+      # (Optional) quick sanity checks
+      - run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt
+          python -c "import sys; print('✅ CI sanity OK', sys.version)"
+
+      # Create deployment zip with ONLY app code (no venv)
+      - name: Build artifact (zip)
         run: |
-          python -m venv venv
-          source venv/bin/activate
-      
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-        
-      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
+          mkdir -p build
+          zip -r build/app.zip . \
+            -x ".git/*" \
+               ".github/*" \
+               "__pycache__/*" \
+               ".venv/*" "venv/*" \
+               "build/*"
 
-      - name: Upload artifact for deployment jobs
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-app
-          path: |
-            .
-            !venv/
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
-
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: python-app
-      
-      - name: Login to Azure
-        uses: azure/login@v2
+      # Azure login (uses OIDC; set up Federated Credentials in Azure)
+      - uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_06397A9FB8C64E0ABBBDE56CB0738486 }}
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_4BF4323FFE9B4B7AAC9B5BC9AD035743 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_E0A9222A95A34D54A35272CA12F4AA5B }}
 
-      - name: 'Deploy to Azure Web App'
+      # Deploy zip (this is fast; dependencies are handled by startup.sh on the server)
+      - name: Zip Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
-        id: deploy-to-webapp
         with:
-          app-name: 'rahul-webapp-clean'
-          slot-name: 'Production'
-          
+          app-name: APP
+          package: build/app.zip
