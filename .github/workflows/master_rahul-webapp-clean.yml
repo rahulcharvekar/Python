@@ -2,7 +2,8 @@ name: Deploy FastAPI to Azure Web App (zip + persistent venv)
 
 on:
   push:
-    branches: [ master ]
+    branches:
+      - master
   workflow_dispatch:
 
 jobs:
@@ -49,5 +50,6 @@ jobs:
       - name: Zip Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
-          app-name: APP
-          package: build/app.zip
+          app-name: 'rahul-webapp-clean'
+          slot-name: 'Production'
+          
