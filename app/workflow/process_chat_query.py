@@ -3,13 +3,13 @@ from app.utils.Logging.logger import logger
 from app.utils.exception.ecxeption_handler import raise_conflict
      
 
-def initialize(query) -> str:
+def initialize(file,query) -> str:
     try:
-        db = chat_services.answer(query)
-
+        msg = chat_services.answer(file,query)
+        #logger.info(f"Query: {query} | Response: {msg}")
         return msg
     except Exception as e:
         logger.error(f"Error while replying to query: {e}")    
-        msg = f"Error while replying to query, please try agin later."   
+        msg = f"Error while replying to query, please try again later."   
         return msg              
 
