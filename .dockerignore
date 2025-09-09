@@ -1,9 +1,6 @@
 ### Python caches
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.so
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -18,7 +15,11 @@ build/
 dist/
 *.egg-info/
 
-### Logs and runtime data
+### VCS
+.git/
+.github/
+
+### Logs and runtime data (exclude from image)
 *.log
 logs/
 uploads/
