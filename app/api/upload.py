@@ -1,7 +1,7 @@
 # api/upload_file.py
 
 from fastapi import APIRouter, UploadFile, File
-from app.workflow import process_file  
+from app.services import file_service
 
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
@@ -14,12 +14,12 @@ async def upload_file(file: UploadFile = File(...)) -> dict:
     It saves the file and processes it.
     """
     # Save the uploaded file
-    result = await process_file.handle_uploaded_file(file)
+    result = await file_service.register_upload(file)
     
     return {"response": result}
 
 @router.get("/getall")
 async def get_all_files():
-    # Save the uploaded file
-    result = process_file.get_all_files()
+    # List all files
+    result = file_service.list_files()
     return result

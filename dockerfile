@@ -12,6 +12,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # copy app
 COPY . .
 COPY startup.sh /startup.sh
+# remove CRLF and set exec bit inside the image
+RUN sed -i 's/\r$//' /startup.sh && chmod +x /startup.sh
+
 
 # allow runtime env overrides for caches later
 ENV HF_HOME=/cache \

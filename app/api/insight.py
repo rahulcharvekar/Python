@@ -1,13 +1,15 @@
 # api/upload_file.py
 
 from fastapi import APIRouter, UploadFile, File
-import app.workflow.get_insights as get_insights
+from app.agents.agent_factory import build_agent
 
 router = APIRouter(prefix="/get_insights", tags=["get_insights"])
 
 
 @router.post("/{file}")
 async def initialize_ai(file):
-    print(f"This is the : {file}")    
-    result = get_insights.initialize(file)
-    return {"response": result}
+    # Route through the agent so tool selection remains flexible
+    executor = build_agent("default")
+    user_input = f"Initialize or update the vector index for file '{file}'."
+    result = executor.invoke({"input": user_input})
+    return {"response": result.get("output", result)}

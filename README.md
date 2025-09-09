@@ -15,8 +15,53 @@ Project Layout
   - `POST /chat/{file}/{query}` — query the file with retrieval-augmented generation.
 - `app/workflow/` — request orchestration.
 - `app/services/` — file upload, vector store build, retrieval + LLM chat.
+
+## Agent + Tools Architecture
+
+This repo now exposes services as LangChain tools and routes requests through agents. You can:
+
+- Use `/agent/query` to send a natural-language instruction; the agent will decide which tool to call.
+- Keep using existing endpoints; `chat` and `get_insights` are internally routed through the agent.
+
+Key files:
+
+- `app/tools/` — LangChain tool wrappers around existing services
+  - `app/tools/chat_tools.py` — `chat_over_file(file, query)`
+  - `app/tools/insight_tools.py` — `initialize_insights(file)`
+  - `app/tools/registry_tools.py` — `list_files()`
+  - `app/tools/__init__.py` — central tool registry (`ALL_TOOLS`, `get_tools_by_names`)
+- `app/agents/` — agent wiring
+  - `app/agents/config.py` — define multiple agents, their tools, and prompts
+  - `app/agents/agent_factory.py` — build an AgentExecutor with selected tools
+- `app/api/agent.py` — `/agent/query` and `/agent/list` endpoints
+
+Add a tool:
+
+1. Create a new file in `app/tools/` and define a function decorated with `@tool("your_tool_name")`.
+2. Import and append your tool to `ALL_TOOLS` in `app/tools/__init__.py`.
+3. Add the tool name to any agent in `app/agents/config.py`.
+
+Add an agent:
+
+1. Add a new entry in `app/agents/config.py` with a unique name, `tools` list, and `system_prompt`.
+2. Call `/agent/query` with `{ "agent": "your_agent", "input": "..." }`.
+
+Example requests:
+
+```
+POST /agent/query
+{
+  "input": "Initialize or update the vector index for file 'mydoc.pdf'"
+}
+
+POST /agent/query
+{
+  "input": "Answer using file 'mydoc.pdf': what are the payment terms?"
+}
+```
 - `app/core/config.py` — central settings with sensible defaults.
 - `uploads/`, `vector_store/`, `db_store/`, `logs/` — runtime storage.
+
 
 Requirements
 - Python 3.11+
@@ -75,4 +120,3 @@ Notes
 Container & Deploy
 - Dockerfile provided (Python 3.11-slim). Entry via `startup.sh`.
 - GitHub Action deploys to Azure Web App (zip deploy).
-
