@@ -49,4 +49,3 @@ def list_files() -> dict:
     except Exception as e:
         logger.error(f"Error retrieving files from the registry: {e}")
         raise_conflict("Error retrieving files from the registry")
-

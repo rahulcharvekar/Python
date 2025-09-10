@@ -5,6 +5,7 @@ from typing import List, Dict
 from .chat_tools import chat_over_file
 from .insight_tools import initialize_insights
 from .registry_tools import list_files
+from .status_tools import check_file_ready
 
 
 # Central registry of all available tools for agents to use.
@@ -13,6 +14,7 @@ ALL_TOOLS = [
     chat_over_file,
     initialize_insights,
     list_files,
+    check_file_ready,
 ]
 
 
@@ -21,4 +23,3 @@ def get_tools_by_names(names: List[str] | None = None):
         return ALL_TOOLS
     by_name: Dict[str, object] = {t.name: t for t in ALL_TOOLS}
     return [by_name[n] for n in names if n in by_name]
-

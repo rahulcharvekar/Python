@@ -2,7 +2,7 @@ from typing import List, Optional, Dict, Any
 
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
 from app.core.config import settings
 from app.tools import get_tools_by_names
@@ -44,13 +44,12 @@ def build_agent(agent_name: str = "default", *, extra_tools: Optional[List[str]]
     tools = get_tools_by_names(tool_names)
 
     system_prompt = cfg.get("system_prompt") or "You are a helpful assistant."
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", system_prompt),
-            ("human", "{input}"),
-            ("placeholder", "{agent_scratchpad}"),
-        ]
-    )
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{input}"),
+        ("placeholder", "{agent_scratchpad}"),
+    ])
 
     llm = _create_llm()
 
@@ -62,4 +61,3 @@ def build_agent(agent_name: str = "default", *, extra_tools: Optional[List[str]]
 def list_agents() -> Dict[str, Any]:
     """Return available agent names and basic descriptions."""
     return {name: {"description": cfg.get("description"), "tools": cfg.get("tools", [])} for name, cfg in AGENTS.items()}
-

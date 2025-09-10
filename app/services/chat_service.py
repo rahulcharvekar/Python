@@ -256,3 +256,32 @@ def answer(file: str, query: str, k: int = 8) -> dict:
     sources = [{"idx": i + 1, "meta": m, "score": s} for i, (_, m, s) in enumerate(hits)]
 
     return {"response": text}
+
+
+def plain_chat(query: str) -> dict:
+    """
+    Basic, non-contextual chat using the configured chat model.
+    Returns a dict with key "response" for consistency with answer().
+    """
+    # Use the new endpoint if available; fallback for older client variants
+    if hasattr(client, "chat_completions"):
+        chat = client.chat_completions.create(
+            model=CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": query},
+            ],
+            temperature=0.2,
+        )
+    else:
+        chat = client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": query},
+            ],
+            temperature=0.2,
+        )
+
+    text = chat.choices[0].message.content
+    return {"response": text}

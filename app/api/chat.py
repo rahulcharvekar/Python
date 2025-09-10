@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, UploadFile, File
 from app.agents.agent_factory import build_agent
+from app.services import chat_service
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -17,3 +18,13 @@ async def process_query(file, query):
     )
     result = executor.invoke({"input": user_input})
     return {"response": result.get("output", result)}
+
+
+@router.post("/{query}")
+async def plain_chat(query: str):
+    """
+    Plain chat without file context. For file-contextual chat, use /chat/{file}/{query}.
+    """
+    result = chat_service.plain_chat(query)
+    # chat_service.plain_chat returns a dict with key "response"
+    return {"response": result.get("response", result)}

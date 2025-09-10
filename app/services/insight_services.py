@@ -71,3 +71,64 @@ def create_vector_store(file: str):
     except Exception as e:
         logger.error(f"Error creating vector store for file {file}: {e}")
         raise
+
+
+def check_vector_ready(file: str) -> dict:
+    """
+    Check whether the vector store for the given file exists and has embeddings.
+
+    Returns a dict with keys: file, file_exists, collection, vector_count, ready.
+    """
+    try:
+        file_location = os.path.join(settings.UPLOAD_DIR, file)
+        exists = os.path.exists(file_location)
+        if not exists:
+            return {
+                "file": file,
+                "file_exists": False,
+                "collection": None,
+                "vector_count": 0,
+                "ready": False,
+            }
+
+        file_hash = hash_file(file_location)
+        stem = Path(file).stem
+        CHROMA_COLLECTION = f"{stem}-{file_hash[:12]}"
+
+        # Prepare embedding function (consistent with ingestion)
+        if settings.APP_ENV == "development":
+            from langchain_huggingface import HuggingFaceEmbeddings
+            embedding = HuggingFaceEmbeddings(model_name=settings.HUGGINGFACE_EMBEDDING_MODEL)
+        else:
+            embedding = OpenAIEmbeddings(
+                api_key=settings.OPENAI_API_KEY,
+                model=settings.OPENAI_EMBEDDING_MODEL,
+            )
+
+        vs = Chroma(
+            collection_name=CHROMA_COLLECTION,
+            persist_directory=Path(settings.CHROMA_DIR),
+            embedding_function=embedding,
+        )
+        try:
+            count = int(vs._collection.count())  # type: ignore[attr-defined]
+        except Exception:
+            count = 0
+
+        return {
+            "file": file,
+            "file_exists": True,
+            "collection": CHROMA_COLLECTION,
+            "vector_count": count,
+            "ready": bool(count and count > 0),
+        }
+    except Exception as e:
+        logger.error(f"Error checking vector readiness for file {file}: {e}")
+        return {
+            "file": file,
+            "file_exists": False,
+            "collection": None,
+            "vector_count": 0,
+            "ready": False,
+            "error": str(e),
+        }
