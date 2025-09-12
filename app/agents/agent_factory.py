@@ -67,8 +67,16 @@ def build_agent(agent_name: str = "default", *, extra_tools: Optional[List[str]]
 
 
 def list_agents() -> Dict[str, Any]:
-    """Return available agent names and basic descriptions."""
-    return {name: {"description": cfg.get("description"), "tools": cfg.get("tools", [])} for name, cfg in AGENTS.items()}
+    """Return available agent names and metadata for UI rendering."""
+    out: Dict[str, Any] = {}
+    for name, cfg in AGENTS.items():
+        out[name] = {
+            "description": cfg.get("description"),
+            "tools": cfg.get("tools", []),
+            # Pass UI hint as yes|no as requested
+            "isuploadrequired": cfg.get("isuploadrequired", "yes"),
+        }
+    return out
 
 
 def select_agent_name(user_input: str) -> str:

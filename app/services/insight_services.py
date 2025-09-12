@@ -1,4 +1,4 @@
-from langchain_community.document_loaders import PyPDFLoader, CSVLoader
+from langchain_community.document_loaders import PyPDFLoader, CSVLoader, TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
@@ -11,10 +11,22 @@ from app.utils.fileops.fileutils import hash_file
 # Expect OPENAI_API_KEY in env.
 # If you're using Azure OpenAI, see the notes below.
 
+def _resolve_path(file: str) -> str:
+    """Resolve file path with priority: absolute → BASE_DIR → UPLOAD_DIR."""
+    p = Path(file)
+    if p.is_absolute() and os.path.exists(p):
+        return str(p)
+    base_candidate = Path(settings.BASE_DIR) / file
+    if os.path.exists(base_candidate):
+        return str(base_candidate)
+    return str(Path(settings.UPLOAD_DIR) / file)
+
+
 def create_vector_store(file: str):
     try:        
         # logger.info(f"Creating vector store for file: {file} with hash: {hash_value}")
-        file_location = os.path.join(settings.UPLOAD_DIR, file)
+        # Resolve path: absolute → BASE_DIR → UPLOAD_DIR
+        file_location = _resolve_path(file)
         # Create a stable, content-based collection name using file hash
         file_hash = hash_file(file_location)
         # 1) Load PDF
@@ -22,6 +34,9 @@ def create_vector_store(file: str):
             loader = CSVLoader(file_location)
         elif file.endswith('.pdf'):
             loader = PyPDFLoader(file_location)
+        elif file.endswith('.txt') or file.endswith('.md'):
+            # UTF-8 text/Markdown loader; preserves text cleanly vs PDF extraction
+            loader = TextLoader(file_location, encoding='utf-8')
         else:
             raise ValueError(f"Unsupported file type: {file}")
         documents = loader.load()
@@ -79,7 +94,8 @@ def check_vector_ready(file: str) -> dict:
     Returns a dict with keys: file, file_exists, collection, vector_count, ready.
     """
     try:
-        file_location = os.path.join(settings.UPLOAD_DIR, file)
+        # Resolve path: absolute → BASE_DIR → UPLOAD_DIR
+        file_location = _resolve_path(file)
         exists = os.path.exists(file_location)
         if not exists:
             return {

@@ -57,8 +57,11 @@ def _get_embedding_fn():
 # -------------------------------
 def _collection_name_from(file: str) -> str:
     # Derive a unique, content-based name matching ingestion logic.
-    stem = Path(file).stem
-    file_path = Path(settings.UPLOAD_DIR) / file
+    file_path = Path(file)
+    if not file_path.is_absolute():
+        base_candidate = Path(settings.BASE_DIR) / file
+        file_path = base_candidate if base_candidate.exists() else (Path(settings.UPLOAD_DIR) / file)
+    stem = file_path.stem
     try:
         h = hash_file(file_path)
         return f"{stem}-{h[:12]}"

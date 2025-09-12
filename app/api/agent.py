@@ -31,7 +31,7 @@ def run_agent(query: AgentQuery) -> Dict[str, Any]:
 
     # If MyProfile is selected but not configured, guide the user
     if agent_name == "MyProfile" and not settings.MYPROFILE_FILE:
-        msg = "MyProfile is not configured. Please set MYPROFILE_FILE in environment to a file under uploads."
+        msg = "MyProfile is not configured. Set MYPROFILE_FILE to an absolute path (e.g., /PYTHON/app/profile.md) or place the file under uploads."
         if query.session_id:
             SessionMemory.append_user(query.session_id, query.input)
             SessionMemory.append_ai(query.session_id, msg)
