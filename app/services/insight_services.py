@@ -6,7 +6,6 @@ from app.utils.Logging.logger import logger
 import os
 from pathlib import Path
 from app.core.config import settings    
-from app.services.file_registry_services import get_file_by_name
 from app.utils.fileops.fileutils import hash_file
 
 # Expect OPENAI_API_KEY in env.

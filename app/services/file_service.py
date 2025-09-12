@@ -1,7 +1,6 @@
 from app.services import file_registry_services as file_registry
 from app.services import upload_service
 from app.utils.fileops.fileutils import hash_file
-from app.core.config import settings
 from app.utils.Logging.logger import logger
 from app.utils.exception.ecxeption_handler import raise_conflict
 

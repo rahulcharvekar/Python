@@ -1,6 +1,6 @@
 # api/upload_file.py
 
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter
 from app.agents.agent_factory import build_agent
 from app.services import chat_service
 
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 @router.post("/{file}/{query}")
 async def process_query(file, query):
     # Use the agent to decide and call the appropriate tool
-    executor = build_agent("default")
+    executor = build_agent("DocHelp")
     # Provide structured guidance in natural language
     user_input = (
         f"Use the chat_over_file tool to answer the question using file '{file}'. "

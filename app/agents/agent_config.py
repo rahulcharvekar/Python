@@ -1,10 +1,10 @@
-from typing import Dict, List
+from typing import Dict
 
 
 # Define agent configurations here. Each agent selects a subset of tools
 # by name and can have a distinct system prompt. Add more agents as needed.
 AGENTS: Dict[str, dict] = {
-    "default": {
+    "DocHelp": {
         "description": "General assistant over uploaded documents",
         "tools": [
             "list_files",
@@ -25,12 +25,19 @@ AGENTS: Dict[str, dict] = {
         ),
     },
     # Example of a specialized agent that only chats over files
-    "chat_only": {
-        "description": "Answers questions over a specified file",
-        "tools": ["chat_over_file"],
+    "MyProfile": {
+        "description": "My Profile Q&A grounded in a single preconfigured resume/profile using tools",
+        "tools": [
+            "initialize_insights",
+            "chat_over_file",
+            "check_file_ready",
+        ],
         "system_prompt": (
-            "You answer questions using the provided file only. "
-            "Always call the chat_over_file tool with file and query."
+            "You are the MyProfile assistant. There is exactly one preconfigured resume/profile file named: {profile_file}.\n"
+            "Always ground answers in that file via tools: first call initialize_insights(file) with {profile_file} (idempotent), then call chat_over_file(file, query) with {profile_file} to answer in the same turn.\n"
+            "You may call check_file_ready(file) with {profile_file} if you need to confirm readiness.\n"
+            "Do not use outside knowledge. If a requested detail is not present in the profile or user-provided answers, reply exactly: 'I don't know based on the profile context.'\n"
+            "Keep outputs concise and tailored to profile/questionnaire use-cases."
         ),
     },
 }

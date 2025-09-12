@@ -1,5 +1,5 @@
 import re
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Dict, Any
 
 
 FILE_EXT_PATTERN = re.compile(r"\b([\w\-\s]+\.(pdf|csv|docx|xlsx|txt))\b", re.IGNORECASE)
@@ -51,4 +51,3 @@ def detect_file_intent(query: str, known_files: List[str]) -> Dict[str, Any]:
         return {"is_file_intent": True, "matched_file": None, "reason": "keywords"}
 
     return {"is_file_intent": False, "matched_file": None, "reason": "no_file_signals"}
-

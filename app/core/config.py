@@ -31,8 +31,12 @@ class Settings(BaseSettings):
     LOG_DIR: Optional[Path] = None
 
     # === RAG store ===
-    CHROMA_COLLECTION: str = Field(default="my_docs")
     CHROMA_DIR: Optional[Path] = None  # if None, will default to VECTOR_STORE_DIR
+
+    # === MyProfile agent ===
+    # Name of the preconfigured resume/profile file located under UPLOAD_DIR
+    # Example: "my_resume.pdf"
+    MYPROFILE_FILE: Optional[str] = None
 
     def model_post_init(self, __context):
         base = Path(self.BASE_DIR)

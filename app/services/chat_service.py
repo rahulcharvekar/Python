@@ -252,9 +252,6 @@ def answer(file: str, query: str, k: int = 8) -> dict:
         )
 
     text = chat.choices[0].message.content
-
-    sources = [{"idx": i + 1, "meta": m, "score": s} for i, (_, m, s) in enumerate(hits)]
-
     return {"response": text}
 
 

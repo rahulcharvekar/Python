@@ -20,4 +20,10 @@ RUN sed -i 's/\r$//' /startup.sh && chmod +x /startup.sh
 ENV HF_HOME=/cache \
     TRANSFORMERS_CACHE=/cache/transformers
 
+# optional: document MyProfile file name to seed from /app into uploads at startup
+ENV MYPROFILE_FILE=""
+
+# ensure uploads directory exists in image (startup also ensures this)
+RUN mkdir -p /PYTHON/uploads
+
 ENTRYPOINT ["/startup.sh"]
