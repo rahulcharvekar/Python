@@ -12,7 +12,6 @@ Project Layout
   - `POST /upload` — upload and register a file.
   - `GET  /upload/getall` — list registered files.
   - `POST /get_insights/{file}` — build embeddings/Chroma collection for a file.
-  - `POST /chat/{file}/{query}` — query the file with retrieval-augmented generation.
 - `app/workflow/` — request orchestration.
 - `app/services/` — file upload, vector store build, retrieval + LLM chat.
 
@@ -21,7 +20,7 @@ Project Layout
 This repo now exposes services as LangChain tools and routes requests through agents. You can:
 
 - Use `/agent/query` to send a natural-language instruction; the agent will decide which tool to call.
-- Keep using existing endpoints; `chat` and `get_insights` are internally routed through the agent.
+- You can keep using existing endpoints where relevant (e.g., `get_insights`), but prefer `/agent/query` for chat over files.
 
 Key files:
 
@@ -99,7 +98,7 @@ Endpoints
 - Build embeddings for a file
   - `POST /get_insights/{file}`
 - Chat over a file
-  - `POST /chat/{file}/{query}`
+  - Prefer `POST /agent/query` with input instructing the agent which file and question to use.
 
 Embedding Alignment Details
 - In development (`APP_ENV=development`):

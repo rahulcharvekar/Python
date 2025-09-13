@@ -6,6 +6,7 @@ from typing import Dict
 AGENTS: Dict[str, dict] = {
     "DocHelp": {
         "description": "General assistant over uploaded documents",
+        "welcomemessage": "Welcome! I can help answer questions about your uploaded documents. Upload a file and ask away.",
         "tools": [
             "list_files",
             "initialize_insights",
@@ -29,6 +30,7 @@ AGENTS: Dict[str, dict] = {
     # Example of a specialized agent that only chats over files
     "MyProfile": {
         "description": "My Profile Q&A grounded in a single preconfigured resume/profile using tools",
+        "welcomemessage": "Hi! I am Rahul Charvekar, you can interact with this AI assistant to know more about my profile.",
         "tools": [
             "initialize_insights",
             "chat_over_file",
