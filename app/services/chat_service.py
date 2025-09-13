@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any
 
 from openai import OpenAI
+import warnings
 from app.utils.Logging.logger import logger
 from app.core.config import settings
 
@@ -36,6 +37,16 @@ def _get_client_and_model():
 
 
 client, CHAT_MODEL = _get_client_and_model()
+
+# Suppress verbose warning that includes full Document.page_content in repr
+warnings.filterwarnings(
+    "ignore",
+    message="Relevance scores must be between 0 and 1",
+    category=UserWarning,
+)
+
+# Shared threshold used to decide if retrieval is strong enough to justify an LLM call
+DEFAULT_SCORE_THRESHOLD = 0.62
 
 
 # -------------------------------
@@ -71,7 +82,7 @@ def _collection_name_from(file: str) -> str:
 
 
 def _get_vectorstore(collection_name: str) -> Chroma:
-    persist_dir = Path(settings.CHROMA_DIR)
+    persist_dir = Path(settings.VECTOR_STORE_DIR)
     vs = Chroma(
         collection_name=collection_name,
         persist_directory=str(persist_dir),
@@ -122,7 +133,7 @@ def retrieve(
     file: str,
     query: str,
     k: int = 8,
-    score_threshold: float = 0.62,
+    score_threshold: float = DEFAULT_SCORE_THRESHOLD,
 ) -> List[Tuple[str, Dict[str, Any], float]]:
     """
     Returns [(doc_text, metadata, norm_score)], norm_score in [0,1], higher is better.
@@ -132,7 +143,7 @@ def retrieve(
     collection = _collection_name_from(file)
     logger.info(
         "Retrieving | dir=%s | collection=%s | k=%s | threshold=%.2f",
-        settings.CHROMA_DIR, collection, k, score_threshold,
+        settings.VECTOR_STORE_DIR, collection, k, score_threshold,
     )
 
     vs = _get_vectorstore(collection)
@@ -151,22 +162,19 @@ def retrieve(
     # Best-first ordering
     results.sort(key=lambda x: x[2], reverse=True)
 
-    # Apply threshold
+    # Apply threshold and return only strong matches
     filtered = [r for r in results if r[2] >= score_threshold]
 
-    # If nothing meets the bar, fall back to top-k normalized results (still sorted best-first)
-    final_hits = filtered if filtered else results[:k]
-
     logger.info(
-        "Top hits (post-normalization)%s: %s",
-        "" if filtered else " [FALLBACK: below threshold]",
+        "Top hits (>= %.2f): %s",
+        score_threshold,
         [
             {"score": round(s, 3), "source": (m.get("source") if isinstance(m, dict) else None)}
-            for _, m, s in final_hits[:5]
+            for _, m, s in filtered[:5]
         ],
     )
 
-    return final_hits
+    return filtered
 
 
 # -------------------------------
@@ -229,9 +237,20 @@ def build_prompt(query: str, hits) -> str:
 # Orchestration
 # -------------------------------
 def answer(file: str, query: str, k: int = 8) -> dict:
-    hits = retrieve(file, query, k=k, score_threshold=0.62)
-    logger.info("Answering query: %s | hits_used=%d", query, len(hits))
-
+    hits = retrieve(file, query, k=k, score_threshold=DEFAULT_SCORE_THRESHOLD)
+    # Avoid logging user prompt content; only log counts/metadata
+    logger.info("Answering query | hits_used=%d", len(hits))
+    
+    # If no results meet the relevance threshold, skip the LLM call to save cost
+    if not hits:
+        logger.info("No matches above threshold; skipping LLM call")
+        return {
+            "response": (
+                "I couldn't find relevant information for this question in the selected file. "
+                "Please try rephrasing, ask about a different section, or choose another file."
+            )
+        }
+    logger.info("Building prompt now....")
     prompt = build_prompt(query, hits)
 
     # Use the new endpoint if available; fallback for older client variants
@@ -252,35 +271,6 @@ def answer(file: str, query: str, k: int = 8) -> dict:
                 {"role": "user", "content": prompt},
             ],
             temperature=0,
-        )
-
-    text = chat.choices[0].message.content
-    return {"response": text}
-
-
-def plain_chat(query: str) -> dict:
-    """
-    Basic, non-contextual chat using the configured chat model.
-    Returns a dict with key "response" for consistency with answer().
-    """
-    # Use the new endpoint if available; fallback for older client variants
-    if hasattr(client, "chat_completions"):
-        chat = client.chat_completions.create(
-            model=CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": query},
-            ],
-            temperature=0.2,
-        )
-    else:
-        chat = client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": query},
-            ],
-            temperature=0.2,
         )
 
     text = chat.choices[0].message.content

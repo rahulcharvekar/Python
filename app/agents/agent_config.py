@@ -3,10 +3,21 @@ from typing import Dict
 
 # Define agent configurations here. Each agent selects a subset of tools
 # by name and can have a distinct system prompt. Add more agents as needed.
+#
+# Prompt variables (handled by agent handlers via build_agent(prompt_vars=...)):
+# - MyProfile: {profile_file} — injected by the MyProfile handler from settings.MYPROFILE_FILE.
+#   Add new variables by referencing them in the agent's `system_prompt` and supplying them
+#   from the corresponding handler.
 AGENTS: Dict[str, dict] = {
     "DocHelp": {
         "description": "General assistant over uploaded documents",
         "welcomemessage": "Welcome! I can help answer questions about your uploaded documents. Upload a file and ask away.",
+        "examples": [
+            "What are the key terms in invoice_0423.pdf?",
+            "Summarize the main findings in report_q2.pdf",
+            "Compare pricing across the uploaded CSV files"
+        ],
+        "capabilities": ["file-qna", "indexing", "status-check"],
         "tools": [
             "list_files",
             "initialize_insights",
@@ -31,6 +42,18 @@ AGENTS: Dict[str, dict] = {
     "MyProfile": {
         "description": "My Profile Q&A grounded in a single preconfigured resume/profile using tools",
         "welcomemessage": "Hi! I am Rahul Charvekar, you can interact with this AI assistant to know more about my profile.",
+        "examples": [
+            "Give me a short summary of Rahul's experience",
+            "What cloud platforms has Rahul worked with?",
+            "Write a 3-sentence pitch for a data engineer role"
+        ],
+        "capabilities": ["profile-qna", "concise-tone"],
+        # Optional LLM overrides for this agent (uncomment or adjust as needed)
+        # "llm": {
+        #     "model": "gpt-4o-mini",
+        #     "temperature": 0,
+        #     # "base_url": "http://127.0.0.1:11434/v1",  # example custom endpoint
+        # },
         "tools": [
             "initialize_insights",
             "chat_over_file",

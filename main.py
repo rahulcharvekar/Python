@@ -1,6 +1,13 @@
 # main.py
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Set safe defaults to prevent SDKs from logging prompts/context
+os.environ.setdefault("OPENAI_LOG", "error")
+os.environ.setdefault("LANGCHAIN_DEBUG", "false")
+os.environ.setdefault("LANGCHAIN_VERBOSE", "false")
+
 from app.api.router import router  # your combined router
 
 def create_app() -> FastAPI:
