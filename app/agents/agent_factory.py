@@ -1,4 +1,5 @@
 from typing import List, Optional, Dict, Any
+import string
 
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_openai import ChatOpenAI
@@ -7,10 +8,22 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from app.core.config import settings
 from app.tools import get_tools_by_names
 from .agent_config import AGENTS
+from app.utils.Logging.logger import logger
 
 
-def _create_llm():
-    """Create a ChatOpenAI-compatible LLM using environment settings."""
+def _create_llm(overrides: Optional[Dict[str, Any]] = None):
+    """Create a ChatOpenAI-compatible LLM using environment settings or overrides."""
+    if overrides:
+        try:
+            return ChatOpenAI(
+                model=overrides.get("model", settings.OPENAI_MODEL),
+                api_key=overrides.get("api_key", settings.OPENAI_API_KEY),
+                base_url=overrides.get("base_url"),
+                temperature=overrides.get("temperature", 0),
+            )
+        except Exception as e:
+            logger.error(f"LLM override creation failed, falling back to defaults: {e}")
+
     app_env = (settings.APP_ENV or "").lower()
     if app_env == "development":
         # Use local OpenAI-compatible server (e.g., Ollama) if configured
@@ -28,7 +41,27 @@ def _create_llm():
     )
 
 
-def build_agent(agent_name: str = "default", *, extra_tools: Optional[List[str]] = None) -> AgentExecutor:
+def _render_prompt(template: str, prompt_vars: Optional[Dict[str, Any]]) -> str:
+    """Safely render a prompt; log missing placeholders and fall back on errors."""
+    if not prompt_vars:
+        return template
+    try:
+        fields = {fname for _, fname, _, _ in string.Formatter().parse(template) if fname}
+        missing = [f for f in fields if f not in (prompt_vars or {})]
+        if missing:
+            logger.warning(f"Prompt variables missing for placeholders: {missing}")
+        return template.format(**prompt_vars)
+    except Exception as e:
+        logger.error(f"Prompt render failed; using template as-is. Error: {e}")
+        return template
+
+
+def build_agent(
+    agent_name,
+    *,
+    extra_tools: Optional[List[str]] = None,
+    prompt_vars: Optional[Dict[str, Any]] = None,
+) -> AgentExecutor:
     """
     Build an AgentExecutor using the named agent configuration and optional extra tools.
     """
@@ -44,13 +77,8 @@ def build_agent(agent_name: str = "default", *, extra_tools: Optional[List[str]]
     tools = get_tools_by_names(tool_names)
 
     system_prompt = cfg.get("system_prompt") or "You are a helpful assistant."
-    # Inject dynamic config into certain agent prompts (e.g., MyProfile)
-    if agent_name == "MyProfile":
-        try:
-            system_prompt = system_prompt.format(profile_file=(settings.MYPROFILE_FILE or "<UNCONFIGURED>"))
-        except Exception:
-            # Fallback without formatting if anything goes wrong
-            pass
+    # Allow handlers to inject dynamic variables into the prompt in a generic way
+    system_prompt = _render_prompt(system_prompt, prompt_vars)
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         MessagesPlaceholder(variable_name="chat_history"),
@@ -58,7 +86,8 @@ def build_agent(agent_name: str = "default", *, extra_tools: Optional[List[str]]
         ("placeholder", "{agent_scratchpad}"),
     ])
 
-    llm = _create_llm()
+    llm_overrides = cfg.get("llm") if isinstance(cfg.get("llm"), dict) else None
+    llm = _create_llm(llm_overrides)
 
     agent = create_tool_calling_agent(llm, tools, prompt)
     # Add a safety cap to avoid runaway tool loops
@@ -76,50 +105,9 @@ def list_agents() -> Dict[str, Any]:
             "tools": cfg.get("tools", []),
             # Pass UI hint as yes|no as requested
             "isuploadrequired": cfg.get("isuploadrequired", "yes"),
+            "examples": cfg.get("examples", []),
+            "capabilities": cfg.get("capabilities", []),
+            # surface model hint if configured
+            "model": (cfg.get("llm") or {}).get("model") if isinstance(cfg.get("llm"), dict) else None,
         }
     return out
-
-
-def select_agent_name(user_input: str) -> str:
-    """Select an agent name based on config-driven selection hints.
-
-    Looks at each agent's optional `select` block in AGENTS to compute a score:
-      - If `keywords_all` is present, all must be contained in the input.
-      - `keywords_any` adds +1 per keyword match.
-      - `priority` is added as a bias for tie-breaking.
-
-    Falls back to "default" or the first configured agent when no match.
-    """
-    text = (user_input or "").lower()
-
-    best_name: Optional[str] = None
-    best_score: Optional[int] = None
-
-    for name, cfg in AGENTS.items():
-        sel = (cfg or {}).get("select") or {}
-        kw_all = [str(k).lower() for k in sel.get("keywords_all", [])]
-        kw_any = [str(k).lower() for k in sel.get("keywords_any", [])]
-        priority = int(sel.get("priority", 0) or 0)
-
-        # If keywords_all provided and not all present, skip this agent
-        if kw_all and not all(k in text for k in kw_all):
-            continue
-
-        hits = sum(1 for k in kw_any if k in text) if kw_any else 0
-        score = priority + hits
-
-        # If agent has no select hints at all, treat as low priority candidate
-        if not kw_all and not kw_any and priority == 0:
-            # Only consider if we have no better match yet
-            if best_score is None:
-                best_name, best_score = name, -1
-            continue
-
-        if best_score is None or score > best_score:
-            best_name, best_score = name, score
-
-    if best_name:
-        return best_name
-
-    # Fallbacks
-    return "default" if "default" in AGENTS else next(iter(AGENTS))

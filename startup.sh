@@ -1,11 +1,6 @@
 #!/usr/bin/env sh
 set -e  # exit if any command fails
 
-# --- Your custom startup commands ---
-echo "Preparing uploads directory..."
-# Respect UPLOAD_DIR if provided, else default to /PYTHON/uploads (matches app default)
-DEST_UPLOAD_DIR=${UPLOAD_DIR:-/PYTHON/uploads}
-mkdir -p "$DEST_UPLOAD_DIR"
 
 # echo "Creating folder in ephemeral storage..."
 # mkdir -p /mnt/storage/uploads

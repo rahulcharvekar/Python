@@ -1,29 +1,31 @@
 # api/upload_file.py
 
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, BackgroundTasks
 from pathlib import Path
 from app.services import file_service
 from app.core.config import settings
 from app.utils.fileops.fileutils import hash_file
+from app.services import insight_services
+from app.utils.Logging.logger import logger
 
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
 
 
-@router.post("")
-async def upload_file(file: UploadFile = File(...)) -> dict:
-    """
-    Endpoint to upload a file.
-    It saves the file and processes it.
-    """
-    # Save the uploaded file
-    result = await file_service.register_upload(file)
-    
-    return {"response": result}
+def _ensure_index(file_name: str) -> None:
+    try:
+        status = insight_services.check_vector_ready(file_name)
+        if isinstance(status, dict) and status.get("ready"):
+            logger.info("Vectors already ready for %s", file_name)
+            return
+        insight_services.create_vector_store(file_name)
+        logger.info("Vector store ensured for %s", file_name)
+    except Exception as e:
+        logger.error("Error ensuring vector store for %s: %s", file_name, e)
 
 
 @router.post("/simple")
-async def simple_upload(file: UploadFile = File(...)) -> dict:
+async def simple_upload(file: UploadFile = File(...), background_tasks: BackgroundTasks = None) -> dict:
     """
     Simple, UI-friendly upload endpoint. Saves and registers the file, and returns
     structured JSON with status and identifiers.
@@ -42,6 +44,16 @@ async def simple_upload(file: UploadFile = File(...)) -> dict:
         file_hash = None
 
     status = "exists" if "already exists" in (msg or "").lower() else "uploaded"
+
+    # Eager indexing in background to minimize first-chat latency and repeated vectorization
+    try:
+        if background_tasks is not None:
+            background_tasks.add_task(_ensure_index, file.filename)
+        else:
+            # Fallback: run inline if BackgroundTasks not provided (should not block much if already ready)
+            _ensure_index(file.filename)
+    except Exception as e:
+        logger.warning("Failed to schedule eager indexing for %s: %s", file.filename, e)
     return {
         "file_name": file.filename,
         "file_hash": file_hash,

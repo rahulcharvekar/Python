@@ -18,7 +18,7 @@
 - Java, Springboot, Micro-services
 - Cloud: Azure, GCP (Basics), AWS (Bsics)
 - Databases: Oracle, MySql
-- Databricks (Basics)
+- Databricks (Basics, but can pick up quickly)
 
 ## Flagship Projects
 1) Title: Real-time Query Assistant for Docs

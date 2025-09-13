@@ -45,8 +45,7 @@ warnings.filterwarnings(
     category=UserWarning,
 )
 
-# Shared threshold used to decide if retrieval is strong enough to justify an LLM call
-DEFAULT_SCORE_THRESHOLD = 0.62
+# Shared threshold used by retrieval; answer() always calls LLM even when below threshold
 
 
 # -------------------------------
@@ -133,7 +132,7 @@ def retrieve(
     file: str,
     query: str,
     k: int = 8,
-    score_threshold: float = DEFAULT_SCORE_THRESHOLD,
+    score_threshold: float = 0.62,
 ) -> List[Tuple[str, Dict[str, Any], float]]:
     """
     Returns [(doc_text, metadata, norm_score)], norm_score in [0,1], higher is better.
@@ -162,19 +161,22 @@ def retrieve(
     # Best-first ordering
     results.sort(key=lambda x: x[2], reverse=True)
 
-    # Apply threshold and return only strong matches
+    # Apply threshold
     filtered = [r for r in results if r[2] >= score_threshold]
 
+    # If nothing meets the bar, fall back to top-k normalized results (still sorted best-first)
+    final_hits = filtered if filtered else results[:k]
+
     logger.info(
-        "Top hits (>= %.2f): %s",
-        score_threshold,
+        "Top hits (post-normalization)%s: %s",
+        "" if filtered else " [FALLBACK: below threshold]",
         [
             {"score": round(s, 3), "source": (m.get("source") if isinstance(m, dict) else None)}
-            for _, m, s in filtered[:5]
+            for _, m, s in final_hits[:5]
         ],
     )
 
-    return filtered
+    return final_hits
 
 
 # -------------------------------
@@ -237,19 +239,10 @@ def build_prompt(query: str, hits) -> str:
 # Orchestration
 # -------------------------------
 def answer(file: str, query: str, k: int = 8) -> dict:
-    hits = retrieve(file, query, k=k, score_threshold=DEFAULT_SCORE_THRESHOLD)
+    hits = retrieve(file, query, k=k, score_threshold=0.62)
     # Avoid logging user prompt content; only log counts/metadata
     logger.info("Answering query | hits_used=%d", len(hits))
-    
-    # If no results meet the relevance threshold, skip the LLM call to save cost
-    if not hits:
-        logger.info("No matches above threshold; skipping LLM call")
-        return {
-            "response": (
-                "I couldn't find relevant information for this question in the selected file. "
-                "Please try rephrasing, ask about a different section, or choose another file."
-            )
-        }
+
     logger.info("Building prompt now....")
     prompt = build_prompt(query, hits)
 

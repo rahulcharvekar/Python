@@ -1,15 +1,23 @@
 from langchain_core.tools import tool
-from app.services import file_registry_services as file_registry
+from app.core.config import settings
+import os
 
 
 @tool("list_files")
 def list_files() -> str:
     """
-    List all files known in the registry.
+    List uploaded files directly from the uploads directory (no SQL dependency).
 
     Returns:
-        A JSON-like string listing files. Useful for the agent to inspect context.
+        A JSON-like string listing filenames.
     """
-    rows = file_registry.get_all_files()
-    return str({"files": rows or []})
-
+    try:
+        up = settings.UPLOAD_DIR
+        if not os.path.isdir(up):
+            return str({"files": []})
+        allowed = {".pdf", ".csv", ".txt", ".md"}
+        files = [f for f in os.listdir(up) if os.path.isfile(os.path.join(up, f))]
+        names = [f for f in files if os.path.splitext(f)[1].lower() in allowed]
+        return str({"files": names})
+    except Exception as e:
+        return str({"files": [], "error": str(e)})

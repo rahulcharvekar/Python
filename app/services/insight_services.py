@@ -23,54 +23,34 @@ def _resolve_path(file: str) -> str:
 
 
 def create_vector_store(file: str):
-    try:        
-        # logger.info(f"Creating vector store for file: {file} with hash: {hash_value}")
+    try:
         # Resolve path: absolute → BASE_DIR → UPLOAD_DIR
         file_location = _resolve_path(file)
-        # Create a stable, content-based collection name using file hash
+        # Stable, content-based collection name using file hash
         file_hash = hash_file(file_location)
-        # 1) Load PDF
-        if file.endswith('.csv'):
-            loader = CSVLoader(file_location)
-        elif file.endswith('.pdf'):
-            loader = PyPDFLoader(file_location)
-        elif file.endswith('.txt') or file.endswith('.md'):
-            # UTF-8 text/Markdown loader; preserves text cleanly vs PDF extraction
-            loader = TextLoader(file_location, encoding='utf-8')
-        else:
-            raise ValueError(f"Unsupported file type: {file}")
-        documents = loader.load()
 
-        # 2) Split into chunks
-        splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-        chunks = splitter.split_documents(documents)
-
-        # 3) OpenAI embeddings (no torch)
-        # text-embedding-3-small is cheap and solid; swap to -large for best quality.
-        if settings.APP_ENV == "development":            
+        # Prepare embedding function (lazy network usage happens only on add_documents)
+        if settings.APP_ENV == "development":
             from langchain_huggingface import HuggingFaceEmbeddings
             embedding = HuggingFaceEmbeddings(model_name=settings.HUGGINGFACE_EMBEDDING_MODEL)
-        else:   
+        else:
             embedding = OpenAIEmbeddings(
                 api_key=settings.OPENAI_API_KEY,
                 model=settings.OPENAI_EMBEDDING_MODEL,
             )
 
-        # 4) Create/persist Chroma DB
-        persist_dir = Path(settings.CHROMA_DIR)
-        # Use a unique, content-based collection name to avoid duplicates
+        # Create/load Chroma collection
+        persist_dir = Path(settings.VECTOR_STORE_DIR)
         stem = Path(file).stem
-        CHROMA_COLLECTION = f"{stem}-{file_hash[:12]}"
-        logger.info(f"Using Chroma collection: {CHROMA_COLLECTION}")
-
-        # Load existing collection (if any)
+        VECTOR_COLLECTION = f"{stem}-{file_hash[:12]}"
+        logger.info(f"Using Chroma collection: {VECTOR_COLLECTION}")
         vs = Chroma(
-            collection_name=CHROMA_COLLECTION,
+            collection_name=VECTOR_COLLECTION,
             persist_directory=persist_dir,
             embedding_function=embedding,
         )
         try:
-            existing = vs._collection.count()  # type: ignore[attr-defined]
+            existing = int(vs._collection.count())  # type: ignore[attr-defined]
         except Exception:
             existing = 0
 
@@ -78,7 +58,19 @@ def create_vector_store(file: str):
             logger.info(f"Collection already exists with {existing} docs; skipping re-ingestion")
             return vs
 
-        # Fresh ingestion
+        # Fresh ingestion only if empty: load, split, embed
+        if file.endswith('.csv'):
+            loader = CSVLoader(file_location)
+        elif file.endswith('.pdf'):
+            loader = PyPDFLoader(file_location)
+        elif file.endswith('.txt') or file.endswith('.md'):
+            loader = TextLoader(file_location, encoding='utf-8')
+        else:
+            raise ValueError(f"Unsupported file type: {file}")
+        documents = loader.load()
+
+        splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+        chunks = splitter.split_documents(documents)
         vs.add_documents(chunks)
         logger.info(f"Vector store created/updated at: {persist_dir}")
         return vs
@@ -108,7 +100,7 @@ def check_vector_ready(file: str) -> dict:
 
         file_hash = hash_file(file_location)
         stem = Path(file).stem
-        CHROMA_COLLECTION = f"{stem}-{file_hash[:12]}"
+        VECTOR_COLLECTION = f"{stem}-{file_hash[:12]}"
 
         # Prepare embedding function (consistent with ingestion)
         if settings.APP_ENV == "development":
@@ -121,8 +113,8 @@ def check_vector_ready(file: str) -> dict:
             )
 
         vs = Chroma(
-            collection_name=CHROMA_COLLECTION,
-            persist_directory=Path(settings.CHROMA_DIR),
+            collection_name=VECTOR_COLLECTION,
+            persist_directory=Path(settings.VECTOR_STORE_DIR),
             embedding_function=embedding,
         )
         try:
@@ -133,7 +125,7 @@ def check_vector_ready(file: str) -> dict:
         return {
             "file": file,
             "file_exists": True,
-            "collection": CHROMA_COLLECTION,
+            "collection": VECTOR_COLLECTION,
             "vector_count": count,
             "ready": bool(count and count > 0),
         }

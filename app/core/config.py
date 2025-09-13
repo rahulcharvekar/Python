@@ -25,13 +25,9 @@ class Settings(BaseSettings):
     BASE_DIR: Path = Path.cwd()
 
     # Optional overrides via env; otherwise derived from BASE_DIR
-    DB_PATH: Optional[Path] = None
     VECTOR_STORE_DIR: Optional[Path] = None
     UPLOAD_DIR: Optional[Path] = None
     LOG_DIR: Optional[Path] = None
-
-    # === RAG store ===
-    CHROMA_DIR: Optional[Path] = None  # if None, will default to VECTOR_STORE_DIR
 
     # === MyProfile agent ===
     # Name of the preconfigured resume/profile file located under UPLOAD_DIR
@@ -41,17 +37,13 @@ class Settings(BaseSettings):
     def model_post_init(self, __context):
         base = Path(self.BASE_DIR)
 
-        # Derive default paths if not set
-        self.DB_PATH = Path(self.DB_PATH) if self.DB_PATH else base / "db_store" / "file_registry.db"
+        # Derive default paths if not set        
         self.VECTOR_STORE_DIR = Path(self.VECTOR_STORE_DIR) if self.VECTOR_STORE_DIR else base / "vector_store"
         self.UPLOAD_DIR = Path(self.UPLOAD_DIR) if self.UPLOAD_DIR else base / "uploads"
         self.LOG_DIR = Path(self.LOG_DIR) if self.LOG_DIR else base / "logs"
 
-        # Chroma directory defaults to the vector store dir unless explicitly set
-        self.CHROMA_DIR = Path(self.CHROMA_DIR) if self.CHROMA_DIR else self.VECTOR_STORE_DIR
-
         # Create folders if they don't exist
-        for p in [self.DB_PATH.parent, self.VECTOR_STORE_DIR, self.UPLOAD_DIR, self.LOG_DIR, self.CHROMA_DIR]:
+        for p in [self.VECTOR_STORE_DIR, self.UPLOAD_DIR, self.LOG_DIR]:
             p.mkdir(parents=True, exist_ok=True)
 
     class Config:
