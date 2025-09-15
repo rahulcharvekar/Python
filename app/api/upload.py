@@ -1,6 +1,6 @@
 # api/upload_file.py
 
-from fastapi import APIRouter, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, BackgroundTasks, Query
 from pathlib import Path
 from app.services import file_service
 from app.core.config import settings
@@ -25,14 +25,18 @@ def _ensure_index(file_name: str) -> None:
 
 
 @router.post("/simple")
-async def simple_upload(file: UploadFile = File(...), background_tasks: BackgroundTasks = None) -> dict:
+async def simple_upload(
+    file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = None,
+    agent: str | None = Query(default=None, description="Optional agent name to associate this file with"),
+) -> dict:
     """
     Simple, UI-friendly upload endpoint. Saves and registers the file, and returns
     structured JSON with status and identifiers.
 
     Multipart form field name: `file`.
     """
-    msg = await file_service.register_upload(file)
+    msg = await file_service.register_upload(file, agent)
 
     file_path = Path(settings.UPLOAD_DIR) / file.filename
     file_hash = None
@@ -61,8 +65,3 @@ async def simple_upload(file: UploadFile = File(...), background_tasks: Backgrou
         "message": msg,
     }
 
-@router.get("/getall")
-async def get_all_files():
-    # List all files
-    result = file_service.list_files()
-    return result

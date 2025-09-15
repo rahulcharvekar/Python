@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Any
 from threading import RLock
 from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 
@@ -12,6 +12,7 @@ class SessionMemory:
     """
 
     _store: Dict[str, List[BaseMessage]] = {}
+    _meta: Dict[str, Dict[str, Any]] = {}
     _lock: RLock = RLock()
 
     @classmethod
@@ -34,4 +35,16 @@ class SessionMemory:
         with cls._lock:
             if session_id in cls._store:
                 del cls._store[session_id]
+            if session_id in cls._meta:
+                del cls._meta[session_id]
 
+    # --- Simple key/value metadata per session (e.g., pinned file) ---
+    @classmethod
+    def set_kv(cls, session_id: str, key: str, value: Any) -> None:
+        with cls._lock:
+            cls._meta.setdefault(session_id, {})[key] = value
+
+    @classmethod
+    def get_kv(cls, session_id: str, key: str, default: Any = None) -> Any:
+        with cls._lock:
+            return cls._meta.get(session_id, {}).get(key, default)

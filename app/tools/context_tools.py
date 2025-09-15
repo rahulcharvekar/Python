@@ -4,7 +4,6 @@ import re
 
 
 def _normalize_query_basic_local(q: str) -> str:
-    """Best-effort light normalization to improve retrieval on chatty/typoed prompts."""
     s = q.lower()
     replacements = {
         r"\bu\b": "you",
@@ -57,12 +56,12 @@ def build_context(
     """
     try:
         from app.services import chat_service
+
         hits = chat_service.retrieve(
             file,
             query,
             k=k,
             score_threshold=score_threshold,
-            strict=strict,
         )
         if not hits and retry_normalized:
             norm = _normalize_query_basic_local(query)
@@ -72,10 +71,9 @@ def build_context(
                     norm,
                     k=k,
                     score_threshold=score_threshold,
-                    strict=strict,
                 )
 
-        if not hits:
+        if not hits and strict:
             return "No strong matches found (context empty)."
 
         def _preview(txt: str) -> str:
@@ -93,6 +91,7 @@ def build_context(
                 parts.append(f"page={pg}")
             header = " | ".join(parts)
             lines.append(f"{header}\n{_preview(doc)}")
-        return "\n\n".join(lines)
+        return "\n\n".join(lines) if lines else "No strong matches found (context empty)."
     except Exception as e:
         return f"Error building context: {e}"
+

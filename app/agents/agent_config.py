@@ -19,7 +19,7 @@ AGENTS: Dict[str, dict] = {
         ],
         "capabilities": ["file-qna", "indexing", "status-check"],
         "tools": [
-            "list_files",
+            "list_agent_files",
             "initialize_insights",
             "chat_over_file",
             "check_file_ready",
