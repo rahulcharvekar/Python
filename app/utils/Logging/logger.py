@@ -16,7 +16,8 @@ logger.propagate = False  # prevent duplication and third-party chatter
 if logger.handlers:
     logger.handlers.clear()
 
-fmt = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+# Show the Python source filename in the header for easier tracing
+fmt = logging.Formatter("%(asctime)s | %(levelname)s | %(filename)s | %(message)s")
 
 file_handler = logging.FileHandler(log_file_path)
 file_handler.setFormatter(fmt)

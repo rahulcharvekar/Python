@@ -2,7 +2,7 @@
 
 from textwrap import dedent
 from pathlib import Path
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
 
 from openai import OpenAI
 import warnings
@@ -27,12 +27,20 @@ def _get_client_and_model():
             base_url=getattr(settings, "LOCAL_LLM_BASE_URL", None),
         )
         model = settings.LOCAL_LLM_MODEL
+        try:
+            logger.info("Chat LLM configured | provider=local | model=%s", model)
+        except Exception:
+            pass
         return client, model
     else:
         if not settings.OPENAI_API_KEY:
             raise RuntimeError("OPENAI_API_KEY is required in production.")
         client = OpenAI(api_key=settings.OPENAI_API_KEY)
         model = settings.OPENAI_MODEL
+        try:
+            logger.info("Chat LLM configured | provider=openai | model=%s", model)
+        except Exception:
+            pass
         return client, model
 
 
@@ -133,6 +141,7 @@ def retrieve(
     query: str,
     k: int = 8,
     score_threshold: float = 0.62,
+    strict: bool = True,
 ) -> List[Tuple[str, Dict[str, Any], float]]:
     """
     Returns [(doc_text, metadata, norm_score)], norm_score in [0,1], higher is better.
@@ -141,8 +150,8 @@ def retrieve(
     """
     collection = _collection_name_from(file)
     logger.info(
-        "Retrieving | dir=%s | collection=%s | k=%s | threshold=%.2f",
-        settings.VECTOR_STORE_DIR, collection, k, score_threshold,
+        "Retrieving | file=%s | dir=%s | collection=%s | k=%s | threshold=%.2f | strict=%s",
+        file, settings.VECTOR_STORE_DIR, collection, k, score_threshold, strict,
     )
 
     vs = _get_vectorstore(collection)
@@ -164,19 +173,39 @@ def retrieve(
     # Apply threshold
     filtered = [r for r in results if r[2] >= score_threshold]
 
-    # If nothing meets the bar, fall back to top-k normalized results (still sorted best-first)
-    final_hits = filtered if filtered else results[:k]
+    if filtered:
+        logger.info(
+            "Top hits (post-normalization) | file=%s | collection=%s: %s",
+            file,
+            collection,
+            [
+                {"score": round(s, 3), "source": (m.get("source") if isinstance(m, dict) else None)}
+                for _, m, s in filtered[:5]
+            ],
+        )
+        return filtered
 
+    # No hits passed threshold
+    if strict:
+        logger.info(
+            "No hits passed threshold; returning empty result set (strict mode) | file=%s | collection=%s",
+            file,
+            collection,
+        )
+        return []
+
+    # Non-strict fallback to top-k normalized results (best-first)
+    fallback = results[:k]
     logger.info(
-        "Top hits (post-normalization)%s: %s",
-        "" if filtered else " [FALLBACK: below threshold]",
+        "Top hits (post-normalization) [FALLBACK: below threshold] | file=%s | collection=%s: %s",
+        file,
+        collection,
         [
             {"score": round(s, 3), "source": (m.get("source") if isinstance(m, dict) else None)}
-            for _, m, s in final_hits[:5]
+            for _, m, s in fallback[:5]
         ],
     )
-
-    return final_hits
+    return fallback
 
 
 # -------------------------------
@@ -238,16 +267,38 @@ def build_prompt(query: str, hits) -> str:
 # -------------------------------
 # Orchestration
 # -------------------------------
-def answer(file: str, query: str, k: int = 8) -> dict:
-    hits = retrieve(file, query, k=k, score_threshold=0.62)
+def answer(
+    file: str,
+    query: str,
+    k: int = 8,
+    score_threshold: float = 0.62,
+    strict: bool = True,
+) -> dict:
+    hits = retrieve(
+        file,
+        query,
+        k=k,
+        score_threshold=score_threshold,
+        strict=strict,
+    )
     # Avoid logging user prompt content; only log counts/metadata
-    logger.info("Answering query | hits_used=%d", len(hits))
+    logger.info("Answering query | file=%s | hits_used=%d", file, len(hits))
 
-    logger.info("Building prompt now....")
+    # If no hits, short-circuit without calling the LLM
+    if not hits:
+        logger.info(
+            "No relevant hits; skipping LLM and returning grounded 'I don't know' response | file=%s",
+            file,
+        )
+        return {"response": "I don't know based on the provided context."}
+
+    logger.info("Building prompt | file=%s | hits_used=%d", file, len(hits))
     prompt = build_prompt(query, hits)
 
     # Use the new endpoint if available; fallback for older client variants
     if hasattr(client, "chat_completions"):
+        provider = "local" if settings.APP_ENV.lower() == "development" else "openai"
+        logger.info("Calling LLM | provider=%s | model=%s | file=%s", provider, CHAT_MODEL, file)
         chat = client.chat_completions.create(
             model=CHAT_MODEL,
             messages=[
@@ -257,6 +308,8 @@ def answer(file: str, query: str, k: int = 8) -> dict:
             temperature=0,
         )
     else:
+        provider = "local" if settings.APP_ENV.lower() == "development" else "openai"
+        logger.info("Calling LLM | provider=%s | model=%s | file=%s", provider, CHAT_MODEL, file)
         chat = client.chat.completions.create(
             model=CHAT_MODEL,
             messages=[
