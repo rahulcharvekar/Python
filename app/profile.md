@@ -6,34 +6,39 @@
 - Total Experience: 15 years
 - Locations: Pune, India
 
+## Summary
+Senior Technology Leader with 14+ years of experience in backend engineering, data platforms, and digital transformation for global banks. Expertise spans Java, Python, Oracle, Azure, and Databricks. Known for strong team collaboraNon,empathy toward peers, and a continuous drive to learn and explore new technologies. Recognized for innovation,mentoring, and driving high-impact modernizaNon initiatives.
+
 ## Target Roles
 - Java Backend Engineer
-- Oracle PLSQL 
+- Oracle PLSQL Developer
 - Technical Architect
 - Initiative Manager
 
 ## Top Skills
 - Python (Intermediate), FastAPI, Django
-- AI BAsics, LLM, Langchain, RAG, MCP etc
+- AI Basics, LLM, Langchain, RAG, MCP etc
 - Java, Springboot, Micro-services
-- Cloud: Azure, GCP (Basics), AWS (Bsics)
-- Databases: Oracle, MySql
+- Cloud: Azure, GCP (Basics), AWS (Basics)
+- Databases: Familiar with most OLTP databses, Expert in Oracle (Expert), can work on Postgrase, MySql, have good understing of various types of databses like - Vector, columnar, document etc.
 - Databricks (Basics, but can pick up quickly)
 
-## Flagship Projects
-1) Title: Real-time Query Assistant for Docs
-   - Context: Search/QA over internal docs used by 1k users
-   - Actions: Built RAG with Chroma, OpenAI embeddings; added reranker; caching
-   - Impact: 35% faster answers; deflected ~20% support tickets
-   - Metrics: latency -45%, top-3 accuracy +18%, 10M queries/mo
+## Flagship Projects/Work
+- Migrated Java/Oracle workloads to Azure + Databricks, reducing infra costs by 25%
+- Optimized multiple SQL's and implemented distributed processing, improving service speed by 30-80%
+- Automated legacy data loads for accurate, on-Nme business reporNng
+- Mentored 3 graduate trainees, enabling their rapid integraNon into agile delivery teams
+- Led minimal-downNme migraNon (Python 2→3, Oracle 11g→19c)
+- Built Spring Boot microservices for file sharing across organizaNon, reducing code duplicaNon by 25%
+- Led the database component of the Global Payment System, ensuring compliance with GDPR
+- Built PL/SQL transacNon engine handling 10K+ daily records with 99.9% accuracy
+- Prepared groundwork and planning for Oracle database migraNon from version 11g to 19c
+- Delivered backend APIs for billing; cut PDF/XML generaNon Nme by 40-60%
+- Led Agile teams of 5–10 members, providing guidance on DevOps pracNces and managing day-to-day BAU
+- Built core modules in cash management systems for global banks, handled day-to-day BAU items
+- Led producNon onboarding at Kasikorn Bank (<2% incident rate)
 
-2) Title: Platform-wide Observability Revamp
-   - Context: Fragmented logging/metrics across microservices
-   - Actions: Centralized OTEL pipeline; SLOs; on-call playbooks
-   - Impact: MTTR -30%, P95 errors -22%
-   - Metrics: MTTR 110m -> 77m, P95 error rate 2.1% -> 1.6%
-
-## Experience Highlights
+## Experience Highlights/Details
    - UBS Technology – Associate Director / Sr. Developer & Data Engineer Dec 2022 – Present | Pune
    - HSBC – Sr. Consultant Specialist / Tech Lead Sep 2021 – Dec 2022 | Pune
    - Citicorp – Manager / Data PlaCorm Engineer Jun 2020 – Aug 2021 | Pune
@@ -45,12 +50,12 @@
 - B.Sc., Biyani College (58%)
 
 ## Certifications
-- Azurre Fundamentals (AZ-200)
+- Azure Fundamentals (AZ-200)
 - Azure Data Fundamentals (DP-200)
 
 ## Preferences
 - Work Type: Remote or Hybrid (Pune)
-- Time Zones: PST ± 3 hours
+- Time Zones: GMT ± 5:30 hours
 - Availability: 2 Months notice
 
 ## Work Authorization
@@ -68,3 +73,7 @@
 Notes:
 - Keep facts crisp; prefer metrics with baselines and deltas.
 - Update this file as your profile changes; the system re-indexes idempotently.
+
+---
+Key questions:
+- Tell me about yourself

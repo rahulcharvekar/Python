@@ -29,12 +29,4 @@ stream_handler.setFormatter(fmt)
 stream_handler.setLevel(logging.INFO)
 logger.addHandler(stream_handler)
 
-# Quiet noisy third-party loggers by default
-for noisy in [
-    "openai", "httpx", "urllib3", "langchain", "chromadb",
-    "uvicorn", "uvicorn.error", "uvicorn.access",
-    "fastapi", "starlette",
-]:
-    _lg = logging.getLogger(noisy)
-    _lg.setLevel(logging.WARNING)
-    _lg.propagate = False
+
