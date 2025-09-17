@@ -1,5 +1,4 @@
 from langchain_core.tools import tool
-from typing import Optional
 import re
 
 

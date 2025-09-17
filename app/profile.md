@@ -39,7 +39,7 @@ Senior Technology Leader with 14+ years of experience in backend engineering, da
 - Led producNon onboarding at Kasikorn Bank (<2% incident rate)
 
 ## Experience Highlights/Details
-   - UBS Technology – Associate Director / Sr. Developer & Data Engineer Dec 2022 – Present | Pune
+   - UBS Technology – Associate Director / Sr. Developer & Data Engineer Dec 2022 – Till Date | Pune
    - HSBC – Sr. Consultant Specialist / Tech Lead Sep 2021 – Dec 2022 | Pune
    - Citicorp – Manager / Data PlaCorm Engineer Jun 2020 – Aug 2021 | Pune
    - HSBC – Sr. SoFware Engineer / Tech Specialist Nov 2016 – Jun 2020 | Pune

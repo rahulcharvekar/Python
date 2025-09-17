@@ -88,9 +88,11 @@ def create_vector_store(file: str, force: bool = False):
             raise ValueError(f"Unsupported file type: {file}")
         documents = loader.load()
 
-        # Tune chunking: keep markdown blocks larger to capture bullets/sections together
+        # Tune chunking per type: larger chunks for markdown and PDFs to keep structure/table rows together
         if file.endswith('.md'):
             splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
+        elif file.endswith('.pdf'):
+            splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
         else:
             splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
         chunks = splitter.split_documents(documents)

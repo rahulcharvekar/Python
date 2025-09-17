@@ -27,22 +27,6 @@ def chat_over_file(file: str, query: str) -> str:
     return str(result)
 
 
-@tool("chat_over_fitness")
-def chat_over_fitness(file: str, query: str, k: int | None = None, score_threshold: float | None = None) -> str:
-    """
-    Answer a question grounded in a fitness data file (CSV/PDF/TXT) with more forgiving retrieval.
-    """
-    result = chat_service.answer(
-        file,
-        query,
-        k=(k if k is not None else 24),
-        score_threshold=(score_threshold if score_threshold is not None else 0.25),
-        strict=True,
-    )
-    if isinstance(result, dict) and "response" in result:
-        return str(result["response"])  # type: ignore[index]
-    return str(result)
-
 
 @tool("chat_over_profile")
 def chat_over_profile(file: str, query: str) -> str:

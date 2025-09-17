@@ -61,12 +61,14 @@ class DocHelpHandler(AgentHandler):
         # Run the selected agent (DocHelp or similarly configured)
         input_text = ctx.input_text
         if active_file:
+            # Keep a soft hint in the input, and also pass explicit prompt vars
             input_text = f"Use file '{active_file}' for all tool calls in this session. " + (ctx.input_text or "")
         output = run_agent(
             agent_name=ctx.agent_name,
             input_text=input_text,
             extra_tools=ctx.extra_tools,
             session_id=ctx.session_id,
+            prompt_vars={"doc_file": active_file} if active_file else None,
         )
         session_append_ai(ctx.session_id, output if isinstance(output, str) else str(output))
         return AgentResult(response=output, session_id=ctx.session_id)

@@ -46,6 +46,10 @@ class Settings(BaseSettings):
         for p in [self.VECTOR_STORE_DIR, self.UPLOAD_DIR, self.LOG_DIR]:
             p.mkdir(parents=True, exist_ok=True)
 
+        # Keep MYPROFILE_FILE exactly as provided in env (no path normalization)
+        if self.MYPROFILE_FILE is not None:
+            self.MYPROFILE_FILE = str(self.MYPROFILE_FILE)
+
     class Config:
         env_file = ".env.local"   # primary
         env_file_encoding = "utf-8"
