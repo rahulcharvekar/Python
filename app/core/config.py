@@ -28,11 +28,7 @@ class Settings(BaseSettings):
     VECTOR_STORE_DIR: Optional[Path] = None
     UPLOAD_DIR: Optional[Path] = None
     LOG_DIR: Optional[Path] = None
-
-    # === MyProfile agent ===
-    # Name of the preconfigured resume/profile file located under UPLOAD_DIR
-    # Example: "my_resume.pdf"
-    MYPROFILE_FILE: Optional[str] = None
+    DB_DIR: Optional[Path] = None
 
     def model_post_init(self, __context):
         base = Path(self.BASE_DIR)
@@ -41,14 +37,13 @@ class Settings(BaseSettings):
         self.VECTOR_STORE_DIR = Path(self.VECTOR_STORE_DIR) if self.VECTOR_STORE_DIR else base / "vector_store"
         self.UPLOAD_DIR = Path(self.UPLOAD_DIR) if self.UPLOAD_DIR else base / "uploads"
         self.LOG_DIR = Path(self.LOG_DIR) if self.LOG_DIR else base / "logs"
+        # DB_DIR defaults to an absolute path /db_store unless overridden
+        self.DB_DIR = Path(self.DB_DIR) if self.DB_DIR else Path("/db_store")
 
         # Create folders if they don't exist
-        for p in [self.VECTOR_STORE_DIR, self.UPLOAD_DIR, self.LOG_DIR]:
+        for p in [self.VECTOR_STORE_DIR, self.UPLOAD_DIR, self.LOG_DIR, self.DB_DIR]:
             p.mkdir(parents=True, exist_ok=True)
 
-        # Keep MYPROFILE_FILE exactly as provided in env (no path normalization)
-        if self.MYPROFILE_FILE is not None:
-            self.MYPROFILE_FILE = str(self.MYPROFILE_FILE)
 
     class Config:
         env_file = ".env.local"   # primary

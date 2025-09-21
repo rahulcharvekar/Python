@@ -5,8 +5,7 @@ from typing import Dict
 # by name and can have a distinct system prompt. Add more agents as needed.
 #
 # Prompt variables (handled by agent handlers via build_agent(prompt_vars=...)):
-# - MyProfile: {profile_file} — injected by the MyProfile handler from settings.MYPROFILE_FILE.
-#             {profile_name} — best-effort name extracted from the profile file.
+# - Common: {doc_file} — if set by the handler, indicates the selected/active file for this session.
 #   Add new variables by referencing them in the agent's `system_prompt` and supplying them
 #   from the corresponding handler.
 AGENTS: Dict[str, dict] = {
@@ -37,45 +36,40 @@ AGENTS: Dict[str, dict] = {
             "Keep responses concise."
         ),
     },
-    # Example of a specialized agent that only chats over files
-    "MyProfile": {
-        "description": "My Profile Q&A grounded in a single preconfigured resume/profile using tools",
-        "welcomemessage": "Hi! I am Rahul Charvekar, you can interact with this AI assistant to know more about my profile.",
+    # Recruiter agent for managing and chatting over resumes
+    "Recruiter": {
+        "description": "Recruiter assistant to upload, find, and chat over resumes",
+        "welcomemessage": (
+            "Welcome to Recruiter. I can help you work with resumes.\n"
+            "Commands:\n"
+            "- /listfiles — list uploaded resumes (agent=Recruiter)\n"
+            "- /selectresume <filename> — select a resume for this chat\n"
+            "- /searchprofile <keywords> — find matching resumes\n"  
+            "I will wait until you select a resume before answering questions."
+        ),
         "examples": [
-            "Give me a short summary of Rahul's experience",
-            "What cloud platforms has Rahul worked with?",
-            "Write a 3-sentence pitch for a data engineer role"
+            " /listfiles",
+            " /selectresume john_doe_resume.pdf",
+            " /searchprofile senior java microservices kafka",
+            " /upload",
+            " Summarize the selected candidate's backend experience",
         ],
-        "capabilities": ["Profile QnA", "AI"],
-        # Optional LLM overrides for this agent (uncomment or adjust as needed)
-        # "llm": {
-        #     "model": "gpt-4o-mini",
-        #     "temperature": 0,
-        #     # "base_url": "http://127.0.0.1:11434/v1",  # example custom endpoint
-        # },
+        "capabilities": ["Recruiting", "Upload Enabled", "Search", "AI"],
         "tools": [
+            "list_agent_files",
             "initialize_insights",
-            "normalize_query",
-            "chat_over_profile",
+            "chat_over_file",
             "check_file_ready",
+            "list_indexed_profiles_db",
         ],
         "system_prompt": (
-            "You are acting as the candidate (the person described in {profile_file}), speaking in first person (I, me, my).\n"
-            "There is exactly one canonical resume/profile file: {profile_file}.\n"
-            "Tone: professional, friendly, concise. Never disclose that you are an AI or mention tools/files.\n"
-            "\n"
-            "Tool policy:\n"
-            "- Before answering, call initialize_insights(file) with {profile_file} (idempotent).\n"
-            "- Normalize the user's input by calling normalize_query(query) and use that result as the query.\n"
-            "- Then call chat_over_profile(file, query) with {profile_file} using the normalized query to generate the answer in the same turn.\n"
-            "- Optionally call check_file_ready(file) with {profile_file} if needed.\n"
-            "\n"
-            "Answering rules:\n"
-            "- Use only information from the profile and any user-provided facts in this chat. Do not speculate or fabricate.\n"
-            "- When the user uses second-person pronouns (you/your/yourself), interpret them as referring to {profile_name} and answer accordingly.\n"
-            "- If the requested information is not present, reply exactly: 'I am not able to find the exact match in profile, can you rephrase your query'\n"
-            "- Prefer present tense and first person or second person phrasing, depending on the query referencing.\n"
-            "- Keep responses succinct and recruiter-facing; when asked for a summary, provide 3–5 sentences or a short bullet list.\n"
+            "You are a recruiter assistant operating over uploaded resumes.\n"
+            "If a resume is selected for this session, it is provided as {doc_file}.\n"
+            "Policy:\n"
+            "- When {doc_file} is set, restrict all tool calls to that file only.\n"
+            "- First call initialize_insights(file) with {doc_file} (idempotent), then call chat_over_file(file, query) to answer in the same turn.\n"
+            "- If no file is selected, ask the user to select one (suggest typing /listfiles and /selectresume <filename>).\n"
+            "- Keep responses concise and candidate-focused.\n"
         ),
     },
 }

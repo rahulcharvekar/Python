@@ -2,12 +2,18 @@ from typing import List, Dict
 
 # Import tool modules here. New tools can be added by creating a file
 # in this package and importing it below.
-from .chat_tools import chat_over_file, chat_over_profile
-from .insight_tools import initialize_insights
-from .status_tools import check_file_ready
-from .context_tools import build_context, normalize_query
-from .reindex_tools import reindex_file
-from .agent_file_tools import list_agent_files
+from .generic import (
+    initialize_insights,
+    check_file_ready,
+    build_context,
+    normalize_query,
+    reindex_file,
+    list_agent_files,
+    extract_keywords,
+)
+from .agent.myprofile_tools import chat_over_profile
+from .agent.dochelp_tools import chat_over_file, list_indexed_docs_db
+from .agent.recruiter_tools import enrich_resume, list_indexed_profiles_db
 
 
 # Central registry of all available tools for agents to use.
@@ -21,6 +27,10 @@ ALL_TOOLS = [
     build_context,
     normalize_query,
     reindex_file,
+    extract_keywords,
+    enrich_resume,
+    list_indexed_profiles_db,
+    list_indexed_docs_db,
 ]
 
 

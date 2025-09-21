@@ -1,4 +1,4 @@
-from langchain_community.document_loaders import PyPDFLoader, CSVLoader, TextLoader
+from langchain_community.document_loaders import PyPDFLoader, CSVLoader, TextLoader, Docx2txtLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from app.core.config import settings    
 from app.utils.fileops.fileutils import hash_file
+from langchain_core.documents import Document
 
 # Expect OPENAI_API_KEY in env.
 # If you're using Azure OpenAI, see the notes below.
@@ -78,20 +79,29 @@ def create_vector_store(file: str, force: bool = False):
             return vs
 
         # Fresh ingestion only if empty: load, split, embed
-        if file.endswith('.csv'):
+        ext = Path(file_location).suffix.lower()
+        if ext == '.csv':
             loader = CSVLoader(file_location)
-        elif file.endswith('.pdf'):
+        elif ext == '.pdf':
             loader = PyPDFLoader(file_location)
-        elif file.endswith('.txt') or file.endswith('.md'):
+        elif ext == '.docx':
+            loader = Docx2txtLoader(file_location)
+        elif ext == '.doc':
+            try:
+                from langchain_community.document_loaders import UnstructuredFileLoader  # optional heavy dep
+                loader = UnstructuredFileLoader(file_location)
+            except Exception:
+                raise ValueError(f"Unsupported file type (requires unstructured): {file}")
+        elif ext in ('.txt', '.md'):
             loader = TextLoader(file_location, encoding='utf-8')
         else:
             raise ValueError(f"Unsupported file type: {file}")
         documents = loader.load()
 
         # Tune chunking per type: larger chunks for markdown and PDFs to keep structure/table rows together
-        if file.endswith('.md'):
+        if ext == '.md':
             splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
-        elif file.endswith('.pdf'):
+        elif ext in ('.pdf', '.docx', '.doc'):
             splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
         else:
             splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
@@ -164,3 +174,39 @@ def check_vector_ready(file: str) -> dict:
             "ready": False,
             "error": str(e),
         }
+
+
+def add_facts_document(file: str, facts_text: str, metadata: dict | None = None) -> str:
+    """
+    Add a compact "facts" document to the existing vector collection for this file.
+
+    This improves retrieval by injecting a small, high-signal document with structured
+    information (e.g., name, skills, experience, keywords) alongside the original chunks.
+
+    Returns the collection name used.
+    """
+    # Resolve collection name consistent with create_vector_store/check_vector_ready
+    file_location = _resolve_path(file)
+    file_hash = hash_file(file_location)
+    stem = Path(file).stem
+    VECTOR_COLLECTION = f"{stem}-{file_hash[:12]}"
+
+    # Prepare embedding function as in ingestion
+    if settings.APP_ENV == "development":
+        from langchain_huggingface import HuggingFaceEmbeddings
+        embedding = HuggingFaceEmbeddings(model_name=settings.HUGGINGFACE_EMBEDDING_MODEL)
+    else:
+        embedding = OpenAIEmbeddings(
+            api_key=settings.OPENAI_API_KEY,
+            model=settings.OPENAI_EMBEDDING_MODEL,
+        )
+
+    vs = Chroma(
+        collection_name=VECTOR_COLLECTION,
+        persist_directory=Path(settings.VECTOR_STORE_DIR),
+        embedding_function=embedding,
+    )
+    meta = {"source": file, **(metadata or {})}
+    vs.add_documents([Document(page_content=facts_text, metadata=meta)])
+    logger.info("Added facts document | file=%s | collection=%s", file, VECTOR_COLLECTION)
+    return VECTOR_COLLECTION

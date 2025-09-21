@@ -3,7 +3,10 @@ from ..base import AgentHandler, AgentContext, AgentResult
 from ..common import run_agent, session_append_ai, session_append_user
 from pathlib import Path
 import re
+import os
 from app.utils.Logging.logger import logger
+from app.services.generic import ingestion_db
+from app.agents.session_memory import SessionMemory
 
 
 def _resolve_profile_path(profile_file: str) -> Path:
@@ -69,32 +72,70 @@ def _rewrite_pronouns_to_name(text: str, name: str) -> str:
 
 class MyProfileHandler(AgentHandler):
     def handle(self, ctx: AgentContext) -> AgentResult:
-        # Config check
-        if not settings.MYPROFILE_FILE:
+        # Determine available files registered for MyProfile agent
+        allowed_ext = {".pdf", ".txt", ".md", ".docx", ".doc"}
+        try:
+            rows = ingestion_db.list_documents("MyProfile")
+            files = []
+            for r in rows:
+                fn = r.get("file") if isinstance(r, dict) else None
+                if isinstance(fn, str) and os.path.splitext(fn)[1].lower() in allowed_ext:
+                    files.append(fn)
+        except Exception:
+            files = []
+
+        if not files:
             msg = (
-                "MyProfile is not configured. Set MYPROFILE_FILE to an absolute path (e.g., /PYTHON/app/profile.md) "
-                "or place the file under uploads."
+                "No profile file configured. Upload a resume and associate it with the MyProfile agent, "
+                "then ask your question."
             )
             session_append_user(ctx.session_id, ctx.input_text)
             session_append_ai(ctx.session_id, msg)
             return AgentResult(response=msg, session_id=ctx.session_id)
 
-        # Resolve profile path and try to infer the profile owner's name
-        profile_path = _resolve_profile_path(settings.MYPROFILE_FILE)
+        # Session-pinned selection
+        active_key = "active_file:MyProfile"
+        active_file = SessionMemory.get_kv(ctx.session_id or "", active_key) if ctx.session_id else None
+
+        # If user mentions a known filename explicitly, pin it
+        lowered = (ctx.input_text or "").lower()
+        mentioned = None
+        for f in files:
+            if f.lower() in lowered:
+                mentioned = f
+                break
+        if mentioned and ctx.session_id:
+            SessionMemory.set_kv(ctx.session_id, active_key, mentioned)
+            active_file = mentioned
+
+        # If still no active file: auto-select if only one, else ask to choose
+        if not active_file:
+            if len(files) == 1:
+                active_file = files[0]
+                if ctx.session_id:
+                    SessionMemory.set_kv(ctx.session_id, active_key, active_file)
+            else:
+                options = ", ".join(files[:10]) + (" …" if len(files) > 10 else "")
+                msg = f"Multiple profiles available. Reply with the exact filename to use. Options: {options}"
+                session_append_user(ctx.session_id, ctx.input_text)
+                session_append_ai(ctx.session_id, msg)
+                return AgentResult(response=msg, session_id=ctx.session_id)
+
+        # Resolve path and infer profile name
+        profile_path = _resolve_profile_path(active_file)
         profile_name = _extract_profile_name(profile_path) or "the profile owner"
         logger.info(f"profile_path {profile_path}")
         logger.info(f"profile_name {profile_name}")
-        # Rewrite second-person pronouns to the profile owner's name
+
         rewritten_input = _rewrite_pronouns_to_name(ctx.input_text or "", profile_name if profile_name != "the profile owner" else "")
 
-        # No guardrails for file intent; proceed to run agent
         output = run_agent(
             agent_name=ctx.agent_name,
             input_text=rewritten_input or ctx.input_text,
             extra_tools=ctx.extra_tools,
             session_id=ctx.session_id,
             prompt_vars={
-                "profile_file": settings.MYPROFILE_FILE or "<UNCONFIGURED>",
+                "profile_file": active_file,
                 "profile_name": profile_name,
             },
         )

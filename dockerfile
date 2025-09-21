@@ -20,8 +20,7 @@ RUN sed -i 's/\r$//' /startup.sh && chmod +x /startup.sh
 ENV HF_HOME=/cache \
     TRANSFORMERS_CACHE=/cache/transformers
 
-# optional: document MyProfile file absolute path used by the app
-ENV MYPROFILE_FILE=""
+ 
 
 # ensure uploads directory exists in image (startup also ensures this)
 RUN mkdir -p /PYTHON/uploads

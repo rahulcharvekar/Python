@@ -4,15 +4,16 @@ from ..common import run_agent, session_append_ai, session_append_user
 from app.agents.session_memory import SessionMemory
 from app.core.config import settings
 import os
-from app.services import agent_file_registry
+from app.services.generic import ingestion_db
 
 
 def _get_known_files() -> List[str]:
-    """Return files registered for the DocHelp agent only (JSON registry)."""
+    """Return files known for DocHelp from SQLite (ingestion_db)."""
     try:
-        allowed = {".pdf", ".csv", ".txt", ".md"}
-        files = agent_file_registry.list_for_agent("DocHelp")
-        return [f for f in files if os.path.splitext(f)[1].lower() in allowed]
+        allowed = {".pdf", ".csv", ".txt", ".md", ".docx", ".doc"}
+        rows = ingestion_db.list_documents("DocHelp")
+        files = [r.get("file") for r in rows if isinstance(r, dict)]
+        return [f for f in files if isinstance(f, str) and os.path.splitext(f)[1].lower() in allowed]
     except Exception:
         return []
 
