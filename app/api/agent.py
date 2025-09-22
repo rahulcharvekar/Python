@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
+import re
 
 from app.agents.agent_factory import list_agents
 from app.services.generic import ingestion_db
@@ -22,25 +23,17 @@ def list_available_agents() -> Dict[str, Any]:
     return {"agents": list_agents()}
 
 
-@router.get("/listfiles")
-def list_agent_files(agent: str) -> Dict[str, Any]:
-    """
-    List all documents known for the specified agent from SQLite (ingestion_db).
-    Exposes all fields returned by ingestion_db.list_documents for each item.
-    """
-    try:
-        rows = ingestion_db.list_documents(agent)
-        return {
-            "agent": agent,
-            "count": len(rows),
-            "items": rows,
-        }
-    except Exception as e:
-        return {"agent": agent, "count": 0, "items": [], "error": str(e)}
-
-
 @router.post("/query")
 def run_agent(query: AgentQuery) -> Dict[str, Any]:
+    # Basic input validation: allow alphanumerics, whitespace, and a safe set of punctuation
+    # Keeps slash commands and common tech terms like C++/C# permissible
+    allowed = re.compile(r"^[A-Za-z0-9\s\-_/\.,:;@()<>\+\#&]*$")
+    text = query.input or ""
+    # Reject placeholder text like <...> so users must replace it before sending
+    if re.search(r"<[^>]+>", text):
+        return {"response": "Please replace placeholders like <...> with actual values before sending."}
+    if not allowed.fullmatch(text):
+        return {"response": "Input contains disallowed special characters."}
     return handle_agent_query(
         input_text=query.input,
         agent=query.agent,

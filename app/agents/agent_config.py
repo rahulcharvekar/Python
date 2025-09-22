@@ -12,6 +12,7 @@ AGENTS: Dict[str, dict] = {
     "DocHelp": {
         "description": "General assistant over uploaded documents",
         "welcomemessage": "Welcome! I can help answer questions about your uploaded documents. Upload a file and ask away.",
+        "commands": [],
         "examples": [
             "What are the key terms in invoice_0423.pdf?",
             "Summarize the main findings in report_q2.pdf",
@@ -41,16 +42,19 @@ AGENTS: Dict[str, dict] = {
         "description": "Recruiter assistant to upload, find, and chat over resumes",
         "welcomemessage": (
             "Welcome to Recruiter. I can help you work with resumes.\n"
-            "Commands:\n"
-            "- /listfiles — list uploaded resumes (agent=Recruiter)\n"
-            "- /selectresume <filename> — select a resume for this chat\n"
-            "- /searchprofile <keywords> — find matching resumes\n"  
             "I will wait until you select a resume before answering questions."
         ),
+        "commands": [
+            {"cmd": "/listfiles", "desc": "list uploaded resumes (agent=Recruiter)"},
+            {"cmd": "/selectresume <filename>", "desc": "select a resume for this chat"},
+            {"cmd": "/searchprofile <keywords>", "desc": "keyword/skills search (fast)"},
+            {"cmd": "/searchprofilellm <llm query>", "desc": "semantic search via vectors"}
+        ],
         "examples": [
             " /listfiles",
             " /selectresume john_doe_resume.pdf",
             " /searchprofile senior java microservices kafka",
+            " /searchprofilellm java kafka payments",
             " /upload",
             " Summarize the selected candidate's backend experience",
         ],
@@ -58,9 +62,10 @@ AGENTS: Dict[str, dict] = {
         "tools": [
             "list_agent_files",
             "initialize_insights",
-            "chat_over_file",
+            "chat_over_profile",
             "check_file_ready",
             "list_indexed_profiles_db",
+            "enrich_resume",
         ],
         "system_prompt": (
             "You are a recruiter assistant operating over uploaded resumes.\n"

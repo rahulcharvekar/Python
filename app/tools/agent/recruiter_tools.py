@@ -50,6 +50,8 @@ def list_indexed_profiles_db(agent: str = "Recruiter") -> str:
                     "file": r.get("file"),
                     "name": r.get("name"),
                     "vector_collection": r.get("vector_collection"),
+                    "skills": r.get("skills"),
+                    "keywords": r.get("keywords"),
                     "updated_at": r.get("updated_at"),
                 }
             )

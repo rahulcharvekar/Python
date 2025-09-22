@@ -102,6 +102,7 @@ def list_agents() -> Dict[str, Any]:
         out[name] = {
             "description": cfg.get("description"),
             "welcomemessage": cfg.get("welcomemessage"),
+            "commands": cfg.get("commands", []),
             "tools": cfg.get("tools", []),
             # Pass UI hint as yes|no as requested
             "isuploadrequired": cfg.get("isuploadrequired", "yes"),

@@ -33,13 +33,37 @@ class RecruiterHandler(AgentHandler):
         lowered = text.lower()
         
         if lowered.startswith("/listfiles"):
-            files = _allowed_files_for_recruiter()
-            
-            if not files:
+            # Show files with optional name/skills/keywords if available
+            try:
+                rows = recruiter_service.list_indexed_profiles(agent="Recruiter")
+            except Exception:
+                rows = []
+            allowed_ext = {".pdf", ".txt", ".md", ".docx", ".doc"}
+            display_rows = []
+            for r in rows:
+                f = r.get("file")
+                if not isinstance(f, str):
+                    continue
+                _, ext = os.path.splitext(f)
+                if ext.lower() not in allowed_ext:
+                    continue
+                name = r.get("name") or ""
+                skills = (r.get("skills") or "").strip()
+                kw = (r.get("keywords") or "").split()
+                kw_short = " ".join(kw[:12]) if kw else ""
+                parts = [f"- {f}"]
+                if name:
+                    parts.append(f"— {name}")
+                if skills:
+                    parts.append(f"— skills: {skills}")
+                if kw_short:
+                    parts.append(f"— kw: {kw_short}")
+                display_rows.append(" ".join(parts))
+
+            if not display_rows:
                 msg = "No resumes found. Upload files with agent=Recruiter, then try again."
             else:
-                sample = "\n".join(files[:10]) + (" …" if len(files) > 10 else "")
-                msg = f"{sample}"
+                msg = "\n".join(display_rows[:10]) + (" …" if len(display_rows) > 10 else "")
             session_append_user(ctx.session_id, ctx.input_text)
             session_append_ai(ctx.session_id, msg)
             return AgentResult(response=msg, session_id=ctx.session_id)
@@ -68,13 +92,32 @@ class RecruiterHandler(AgentHandler):
             session_append_ai(ctx.session_id, msg)
             return AgentResult(response=msg, session_id=ctx.session_id)
 
+        if lowered.startswith("/searchprofilellm"):
+            parts = text.split(maxsplit=1)
+            if len(parts) < 2:
+                msg = "Usage: /searchprofilellm <llm query>"   
+            else:
+                query = parts[1].strip()
+                results = recruiter_service.search_profiles(query, agent="Recruiter")
+                if not results:
+                    msg = "No matching profiles found."
+                else:
+                    lines = [
+                        f"- {r.get('file')} (score={r.get('best_score')})" + (f" — {r.get('name')}" if r.get('name') else "")
+                        for r in results[:10]
+                    ]
+                    msg = "Top matches (LLM):\n" + "\n".join(lines)
+            session_append_user(ctx.session_id, ctx.input_text)
+            session_append_ai(ctx.session_id, msg)
+            return AgentResult(response=msg, session_id=ctx.session_id)
+
         if lowered.startswith("/searchprofile"):
             parts = text.split(maxsplit=1)
             if len(parts) < 2:
                 msg = "Usage: /searchprofile <keywords>"
             else:
                 query = parts[1].strip()
-                results = recruiter_service.search_profiles(query, agent="Recruiter")
+                results = recruiter_service.search_profiles_keyword(query, agent="Recruiter")
                 if not results:
                     msg = "No matching profiles found."
                 else:

@@ -82,6 +82,17 @@ def enrich_resume(file: str, *, agent: str = "Recruiter") -> Dict[str, Any]:
 
     # Persist generic document row
     ingestion_db.upsert_document(agent=agent, file=file, title=person_name, vector_collection=str(collection or ""))
+    # Store searchable keywords/skills into FTS table (best-effort)
+    try:
+        ingestion_db.upsert_doc_keywords(
+            agent=agent,
+            file=file,
+            title=person_name,
+            keywords=keywords,
+            skills=skills,
+        )
+    except Exception:
+        pass
 
     # Also add a compact facts document into the vector collection to boost retrieval
     try:
@@ -120,7 +131,11 @@ def enrich_resume(file: str, *, agent: str = "Recruiter") -> Dict[str, Any]:
 
 
 def list_indexed_profiles(agent: str = "Recruiter") -> List[Dict[str, Any]]:
-    rows = ingestion_db.list_documents(agent)
+    # Prefer join with keywords/skills when available
+    try:
+        rows = ingestion_db.list_documents_with_keywords(agent)
+    except Exception:
+        rows = ingestion_db.list_documents(agent)
     out: List[Dict[str, Any]] = []
     for r in rows:
         out.append(
@@ -128,8 +143,8 @@ def list_indexed_profiles(agent: str = "Recruiter") -> List[Dict[str, Any]]:
                 "file": r.get("file"),
                 "name": r.get("title"),
                 "vector_collection": r.get("vector_collection"),
-                "keywords_count": len(r.get("keywords") or []),
-                "skills": r.get("tags"),
+                "keywords": r.get("keywords"),
+                "skills": r.get("skills"),
                 "updated_at": r.get("updated_at"),
             }
         )
@@ -156,8 +171,13 @@ def search_profiles(query: str, *, agent: str = "Recruiter", k_per_file: int = 4
     best_meta: Dict[str, Dict[str, Any]] = {}
     for f in files:
         try:
-            hits = chat_service.retrieve(f, query, k=k_per_file, score_threshold=0.35, strict=False)
+            min_score = 0.35
+            hits = chat_service.retrieve(f, query, k=k_per_file, score_threshold=min_score, strict=True)
+            if not hits:
+                continue
             best = max((s for (_d, _m, s) in hits), default=0.0)
+            if best < min_score:
+                continue
             ranked.append((f, float(best)))
             # store name/vector_collection for convenience
             row = next((r for r in rows if r.get("file") == f), {})
@@ -176,6 +196,36 @@ def search_profiles(query: str, *, agent: str = "Recruiter", k_per_file: int = 4
             "file": f,
             "best_score": round(score, 3),
             "name": meta.get("name"),
+            "vector_collection": meta.get("vector_collection"),
+        })
+    return out
+
+
+def search_profiles_keyword(query: str, *, agent: str = "Recruiter", limit: int = 20) -> List[Dict[str, Any]]:
+    """Keyword/skills based search using SQLite FTS over enriched metadata."""
+    # Base metadata to attach names/vector collections
+    try:
+        rows = ingestion_db.list_documents(agent)
+    except Exception:
+        rows = []
+    by_file = {r.get("file"): r for r in rows if isinstance(r, dict)}
+
+    # FTS search
+    try:
+        fts_rows = ingestion_db.search_doc_keywords(agent, query, limit)
+    except Exception:
+        fts_rows = []
+
+    out: List[Dict[str, Any]] = []
+    for r in fts_rows:
+        f = r.get("file")
+        meta = by_file.get(f, {})
+        raw = float(r.get("score") or 0.0)  # bm25: lower is better
+        score = 1.0 / (1.0 + max(0.0, raw))  # map to 0..1 where higher is better
+        out.append({
+            "file": f,
+            "best_score": round(score, 3),
+            "name": meta.get("title"),
             "vector_collection": meta.get("vector_collection"),
         })
     return out
