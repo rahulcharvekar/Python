@@ -47,25 +47,21 @@ AGENTS: Dict[str, dict] = {
         "commands": [
             {"cmd": "/listfiles", "desc": "list uploaded resumes (agent=Recruiter)"},
             {"cmd": "/selectresume <filename>", "desc": "select a resume for this chat"},
-            {"cmd": "/searchprofile <keywords>", "desc": "keyword/skills search (fast)"},
-            {"cmd": "/searchprofilellm <llm query>", "desc": "semantic search via vectors"}
+            {"cmd": "/searchprofilellm <criteria>", "desc": "intent-aware search (LLM intent + vectors)"}
         ],
         "examples": [
             " /listfiles",
             " /selectresume john_doe_resume.pdf",
-            " /searchprofile senior java microservices kafka",
-            " /searchprofilellm java kafka payments",
+            " /searchprofilellm java only, pune, 10+ years",
             " /upload",
             " Summarize the selected candidate's backend experience",
         ],
         "capabilities": ["Recruiting", "Upload Enabled", "Search", "AI"],
         "tools": [
             "list_agent_files",
-            "initialize_insights",
             "chat_over_profile",
             "check_file_ready",
             "list_indexed_profiles_db",
-            "enrich_resume",
         ],
         "system_prompt": (
             "You are a recruiter assistant operating over uploaded resumes.\n"

@@ -48,16 +48,9 @@ class RecruiterHandler(AgentHandler):
                 if ext.lower() not in allowed_ext:
                     continue
                 name = r.get("name") or ""
-                skills = (r.get("skills") or "").strip()
-                kw = (r.get("keywords") or "").split()
-                kw_short = " ".join(kw[:12]) if kw else ""
                 parts = [f"- {f}"]
                 if name:
                     parts.append(f"— {name}")
-                if skills:
-                    parts.append(f"— skills: {skills}")
-                if kw_short:
-                    parts.append(f"— kw: {kw_short}")
                 display_rows.append(" ".join(parts))
 
             if not display_rows:
@@ -95,10 +88,10 @@ class RecruiterHandler(AgentHandler):
         if lowered.startswith("/searchprofilellm"):
             parts = text.split(maxsplit=1)
             if len(parts) < 2:
-                msg = "Usage: /searchprofilellm <llm query>"   
+                msg = "Usage: /searchprofilellm <criteria>"
             else:
                 query = parts[1].strip()
-                results = recruiter_service.search_profiles(query, agent="Recruiter")
+                results = recruiter_service.search_profiles_intent_llm(query, agent="Recruiter")
                 if not results:
                     msg = "No matching profiles found."
                 else:
@@ -106,29 +99,12 @@ class RecruiterHandler(AgentHandler):
                         f"- {r.get('file')} (score={r.get('best_score')})" + (f" — {r.get('name')}" if r.get('name') else "")
                         for r in results[:10]
                     ]
-                    msg = "Top matches (LLM):\n" + "\n".join(lines)
+                    msg = "Top matches (LLM intent + vectors):\n" + "\n".join(lines)
             session_append_user(ctx.session_id, ctx.input_text)
             session_append_ai(ctx.session_id, msg)
             return AgentResult(response=msg, session_id=ctx.session_id)
 
-        if lowered.startswith("/searchprofile"):
-            parts = text.split(maxsplit=1)
-            if len(parts) < 2:
-                msg = "Usage: /searchprofile <keywords>"
-            else:
-                query = parts[1].strip()
-                results = recruiter_service.search_profiles_keyword(query, agent="Recruiter")
-                if not results:
-                    msg = "No matching profiles found."
-                else:
-                    lines = [
-                        f"- {r.get('file')} (score={r.get('best_score')})" + (f" — {r.get('name')}" if r.get('name') else "")
-                        for r in results[:10]
-                    ]
-                    msg = "Top matches:\n" + "\n".join(lines)
-            session_append_user(ctx.session_id, ctx.input_text)
-            session_append_ai(ctx.session_id, msg)
-            return AgentResult(response=msg, session_id=ctx.session_id)
+        # /searchprofile removed in favor of /searchprofilellm
 
         # Normal query path: ensure an active file is selected
         files = _allowed_files_for_recruiter()

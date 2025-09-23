@@ -17,7 +17,7 @@ def chat_over_file(file: str, query: str) -> str:
         query,
         k=12,
         score_threshold=0.45,
-        strict=True,
+        strict=False,
     )
     if isinstance(result, dict) and "response" in result:
         return str(result["response"])  # type: ignore[index]

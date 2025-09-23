@@ -22,7 +22,9 @@ class Settings(BaseSettings):
     HUGGINGFACE_EMBEDDING_MODEL: str = Field(default="sentence-transformers/all-MiniLM-L6-v2")
 
     # === Storage roots ===
-    BASE_DIR: Path = Path.cwd()
+    # Set BASE_DIR via env (e.g., BASE_DIR=/mnt/storage). Defaults to /mnt/storage in prod-like
+    # environments; override locally as needed.
+    BASE_DIR: Path = Path("/mnt/storage")
 
     # Optional overrides via env; otherwise derived from BASE_DIR
     VECTOR_STORE_DIR: Optional[Path] = None
@@ -37,8 +39,8 @@ class Settings(BaseSettings):
         self.VECTOR_STORE_DIR = Path(self.VECTOR_STORE_DIR) if self.VECTOR_STORE_DIR else base / "vector_store"
         self.UPLOAD_DIR = Path(self.UPLOAD_DIR) if self.UPLOAD_DIR else base / "uploads"
         self.LOG_DIR = Path(self.LOG_DIR) if self.LOG_DIR else base / "logs"
-        # DB_DIR defaults to an absolute path /db_store unless overridden
-        self.DB_DIR = Path(self.DB_DIR) if self.DB_DIR else Path("/db_store")
+        # DB_DIR now derived under BASE_DIR by default (e.g., /mnt/storage/db_store)
+        self.DB_DIR = Path(self.DB_DIR) if self.DB_DIR else base / "db_store"
 
         # Create folders if they don't exist
         for p in [self.VECTOR_STORE_DIR, self.UPLOAD_DIR, self.LOG_DIR, self.DB_DIR]:

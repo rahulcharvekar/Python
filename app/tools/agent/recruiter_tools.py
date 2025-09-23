@@ -4,26 +4,21 @@ from langchain_core.tools import tool
 from typing import List, Dict, Any
 
 from app.services.agents import recruiter_service
+from app.services.generic import chat_service
 
 
 @tool("enrich_resume")
 def enrich_resume(file: str, agent: str = "Recruiter") -> str:
     """
-    Enrich a resume's metadata for the Recruiter workflow (no vector creation).
+    Register/update the resume row for the Recruiter workflow (no vector creation).
 
-    - Parses the resume text to extract fields (name, skills, experience, emails/phones) and keywords.
-    - Upserts these fields into the SQLite ingestion DB for the given agent/file.
-    - Reads the vector_collection that was created during upload and stores it alongside.
-
-    This does not create or modify the vector embeddings; retrieval continues to use
-    the same collection built at upload time for the full file. Use this to power
-    deterministic filters and better UI displays.
+    Persists/refreshes the document entry in the ingestion DB and associates it
+    with the existing vector collection created during upload.
     """
     try:
         info = recruiter_service.enrich_resume(file, agent=agent)
         return (
-            f"Enriched '{info.get('file')}' via {info.get('loader')}; collection={info.get('collection')}; "
-            f"skills={','.join(info.get('skills') or []) if info.get('skills') else '-'}"
+            f"Enriched '{info.get('file')}' via {info.get('loader')}; collection={info.get('collection')}"
         )
     except Exception as e:
         return f"Failed to enrich '{file}': {e}"
@@ -39,7 +34,7 @@ def list_indexed_profiles_db(agent: str = "Recruiter") -> str:
 
     Returns:
         A JSON-like string with key "profiles" containing an array of objects
-        { file, name, vector_collection, skills, updated_at }.
+        { file, name, vector_collection, updated_at }.
     """
     try:
         rows = recruiter_service.list_indexed_profiles(agent)
@@ -50,11 +45,25 @@ def list_indexed_profiles_db(agent: str = "Recruiter") -> str:
                     "file": r.get("file"),
                     "name": r.get("name"),
                     "vector_collection": r.get("vector_collection"),
-                    "skills": r.get("skills"),
-                    "keywords": r.get("keywords"),
                     "updated_at": r.get("updated_at"),
                 }
             )
         return str({"profiles": out})
     except Exception as e:
         return str({"profiles": [], "error": str(e)})
+
+@tool("chat_over_profile")
+def chat_over_profile(file: str, query: str) -> str:
+    """
+    Answer a question grounded in the profile file with strict, file-only retrieval.
+    """
+    result = chat_service.answer(
+        file,
+        query,
+        k=12,
+        score_threshold=0.45,
+        strict=True,
+    )
+    if isinstance(result, dict) and "response" in result:
+        return str(result["response"])  # type: ignore[index]
+    return str(result)

@@ -1,78 +1,14 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import List, Dict, Any, Tuple
-import re
 
-from app.services.generic import profile_text, ingestion_db, insight_services, chat_service
-from app.core.config import settings
-from app.utils.fileops.fileutils import hash_file
-import os
-
-
-def _extract_keywords(text: str, max_k: int = 40) -> List[str]:
-    s = re.sub(r"[^a-z0-9\s]", " ", (text or "").lower())
-    tokens = [t for t in s.split() if t]
-    stop = {
-        "and","or","the","a","an","is","are","with","in","of","to","for","on","at","by","as","be",
-        "this","that","it","from","was","were","am","i","we","you","they","he","she","have","has","had",
-        "my","our","their","your","over","using","use","used","etc","pdf","doc","docx","txt","resume","cv",
-        "csv","xlsx","md","file","document",
-    }
-    counts: Dict[str, int] = {}
-    for t in tokens:
-        if t in stop or len(t) < 2:
-            continue
-        counts[t] = counts.get(t, 0) + 1
-    return [term for term, _ in sorted(counts.items(), key=lambda x: (-x[1], x[0]))[:max_k]]
-
-
-def _extract_emails(text: str) -> List[str]:
-    return sorted(set(re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text or "")))
-
-
-def _extract_phones(text: str) -> List[str]:
-    return sorted(set(re.findall(r"\+?\d[\d\-\s()]{8,}\d", text or "")))
-
-
-def _extract_total_experience(text: str) -> int | None:
-    vals = [int(m) for m in re.findall(r"(\d{1,2})\s*(?:\+\s*)?(?:years|yrs)\b", text or "", flags=re.IGNORECASE)]
-    return max(vals) if vals else None
-
-
-def _extract_skills(text: str) -> List[str]:
-    skill_keywords = [
-        "java","spring","springboot","microservices","kafka","aws","gcp","azure","python","sql",
-        "spark","hadoop","airflow","docker","kubernetes","rest","graphql","react","node","django",
-    ]
-    norm = re.sub(r"[^a-z0-9\s]", " ", (text or "").lower())
-    tokens = set(norm.split())
-    return sorted({k for k in skill_keywords if k in tokens})
-
-
-def _extract_person_name_from_email(emails: List[str]) -> str | None:
-    for em in emails or []:
-        try:
-            local = em.split("@", 1)[0]
-            local = re.sub(r"[._-]+", " ", local)
-            words = [w for w in local.split() if w and w.isalpha()]
-            if 1 < len(words) <= 4:
-                return " ".join(w.capitalize() for w in words)
-        except Exception:
-            continue
-    return None
+from app.services.generic import profile_text, ingestion_db, chat_service
+from app.services.generic import intent_service
 
 
 def enrich_resume(file: str, *, agent: str = "Recruiter") -> Dict[str, Any]:
-    text, loader = profile_text.load_text(file)
-    emails = _extract_emails(text)
-    phones = _extract_phones(text)
-    total_exp = _extract_total_experience(text)
-    skills = _extract_skills(text)
-    person_name = _extract_person_name_from_email(emails)
-    keywords = _extract_keywords(text)
-
-    # Obtain vector collection name from DB (upload flow writes it). Do not create here.
+    # Minimal enrichment without regex: persist document row; skip keyword/skill extraction.
+    _text, loader = profile_text.load_text(file)
     try:
         rows = ingestion_db.list_documents(agent)
         row = next((r for r in rows if isinstance(r, dict) and r.get("file") == file), None)
@@ -80,62 +16,22 @@ def enrich_resume(file: str, *, agent: str = "Recruiter") -> Dict[str, Any]:
     except Exception:
         collection = None
 
-    # Persist generic document row
-    ingestion_db.upsert_document(agent=agent, file=file, title=person_name, vector_collection=str(collection or ""))
-    # Store searchable keywords/skills into FTS table (best-effort)
-    try:
-        ingestion_db.upsert_doc_keywords(
-            agent=agent,
-            file=file,
-            title=person_name,
-            keywords=keywords,
-            skills=skills,
-        )
-    except Exception:
-        pass
-
-    # Also add a compact facts document into the vector collection to boost retrieval
-    try:
-        facts_lines = [
-            f"Name: {person_name or ''}",
-            f"Emails: {', '.join(emails or [])}",
-            f"Phones: {', '.join(phones or [])}",
-            f"TotalExperienceYears: {total_exp if total_exp is not None else ''}",
-            f"Skills: {', '.join(skills or [])}",
-            f"Keywords: {', '.join(keywords or [])}",
-            f"SourceFile: {file}",
-        ]
-        facts_text = "\n".join(facts_lines)
-        insight_services.add_facts_document(
-            file,
-            facts_text,
-            metadata={
-                "type": "facts",
-                "name": person_name or "",
-                "skills": skills or [],
-                "total_experience_years": total_exp if total_exp is not None else None,
-                "emails": emails or [],
-                "phones": phones or [],
-            },
-        )
-    except Exception:
-        pass
+    ingestion_db.upsert_document(agent=agent, file=file, title=None, vector_collection=str(collection or ""))
 
     return {
         "file": file,
         "loader": loader,
         "collection": collection,
-        "skills": skills,
-        "name": person_name,
+        "skills": [],
+        "name": None,
     }
 
 
 def list_indexed_profiles(agent: str = "Recruiter") -> List[Dict[str, Any]]:
-    # Prefer join with keywords/skills when available
     try:
-        rows = ingestion_db.list_documents_with_keywords(agent)
-    except Exception:
         rows = ingestion_db.list_documents(agent)
+    except Exception:
+        rows = []
     out: List[Dict[str, Any]] = []
     for r in rows:
         out.append(
@@ -143,85 +39,140 @@ def list_indexed_profiles(agent: str = "Recruiter") -> List[Dict[str, Any]]:
                 "file": r.get("file"),
                 "name": r.get("title"),
                 "vector_collection": r.get("vector_collection"),
-                "keywords": r.get("keywords"),
-                "skills": r.get("skills"),
                 "updated_at": r.get("updated_at"),
             }
         )
     return out
 
 
-def search_profiles(query: str, *, agent: str = "Recruiter", k_per_file: int = 4) -> List[Dict[str, Any]]:
-    """
-    Search across all indexed resumes for the given agent and return a ranked list.
+# Removed legacy search_profiles (keyword-less vector sweep). Use search_profiles_intent_llm.
 
-    Strategy: for each file registered to the agent, run vector retrieval with a
-    lenient threshold to get top matches, track the best normalized score, and sort
-    files by that score desc.
 
-    Returns a list of { file, best_score, name, vector_collection }.
+def search_profiles_keyword(query: str, *, agent: str = "Recruiter", limit: int = 20) -> List[Dict[str, Any]]:
+    """Deprecated: keyword search removed (FTS disabled)."""
+    return []
+
+
+def _language_tokens() -> set:
+    return {
+        "java", "j2ee", "spring", "springboot", "microservices",
+        "python", "django", "flask", "fastapi",
+        "javascript", "typescript", "node", "nodejs", "react",
+        "c", "c++", "cpp", "c#", "csharp",
+        "go", "golang", "ruby", "rails", "php",
+        "scala", "kotlin", "rust", "swift", "objective-c",
+    }
+
+
+def search_profiles_intent_llm(
+    query: str,
+    *,
+    agent: str = "Recruiter",
+    shortlist_limit: int = 50,
+    k_per_file: int = 8,
+) -> List[Dict[str, Any]]:
     """
+    One-shot LLM intent parsing + vector ranking.
+
+    - Parse criteria once via LLM (cheap) into structured filters
+    - Optionally shortlist via FTS over enriched keywords/skills
+    - Retrieve over shortlisted files and compute a composite score
+    """
+    # 1) Parse criteria
+    criteria = intent_service.parse_criteria_llm(query)
+    rewritten = intent_service.rewrite_query(criteria)
+
+    # 2) Build metadata map and optional shortlist via FTS
     try:
-        rows = ingestion_db.list_documents(agent)
-        files = [r.get("file") for r in rows if isinstance(r, dict) and isinstance(r.get("file"), str)]
+        rows_kw = ingestion_db.list_documents(agent)
     except Exception:
-        files = []
+        rows_kw = []
+    by_file = {r.get("file"): r for r in rows_kw if isinstance(r, dict)}
+
+    # Candidates: all files (FTS disabled); rely on vectors for ranking.
+    candidates: List[str] = [f for f in by_file.keys()]
+
+    # 3) Retrieve and score
+    min_score = 0.30
+    lang_tokens = _language_tokens()
+    include = set(criteria.get("include_skills") or [])
+    required = set(criteria.get("required_skills") or [])
+    optional = set(criteria.get("optional_skills") or [])
+    exclude = set(criteria.get("exclude_skills") or [])
+    require_all = bool(criteria.get("require_all"))
+    must_only = bool(criteria.get("must_only"))
+    min_years = criteria.get("min_years")
+    locs = set((criteria.get("locations") or []))
+    titles = set((criteria.get("titles") or []))
+    seniority = set((criteria.get("seniority_levels") or []))
+    domains = set((criteria.get("domains") or []))
+    top_n = criteria.get("top_n") if isinstance(criteria.get("top_n"), int) else None
 
     ranked: List[Tuple[str, float]] = []
-    best_meta: Dict[str, Dict[str, Any]] = {}
-    for f in files:
+    for f in candidates:
         try:
-            min_score = 0.35
-            hits = chat_service.retrieve(f, query, k=k_per_file, score_threshold=min_score, strict=True)
+            hits = chat_service.retrieve(f, rewritten, k=k_per_file, score_threshold=min_score, strict=True)
             if not hits:
                 continue
             best = max((s for (_d, _m, s) in hits), default=0.0)
             if best < min_score:
                 continue
-            ranked.append((f, float(best)))
-            # store name/vector_collection for convenience
-            row = next((r for r in rows if r.get("file") == f), {})
-            best_meta[f] = {
-                "name": row.get("title"),
-                "vector_collection": row.get("vector_collection"),
-            }
+
+            # Heuristic boosts/penalties from metadata and retrieved text
+            # Present tokens helper
+            meta = by_file.get(f, {})
+            text_blob = "\n".join(d for (d, _m, _s) in hits[:3] if isinstance(d, str)).lower()
+            def _has(token: str) -> bool:
+                t = (token or "").lower().strip()
+                return bool(t) and (t in text_blob)
+
+            # Hard gates
+            req_set = set(required)
+            if require_all and not req_set:
+                req_set = set(include)
+            if req_set and any(not _has(s) for s in req_set):
+                continue  # missing a mandatory skill
+            if exclude and any(_has(s) for s in exclude):
+                continue  # explicitly excluded present
+
+            boost = 0.0
+            # location boost (from retrieved text only)
+            if any((loc or "") in text_blob for loc in locs if loc):
+                boost += 0.05
+
+            # years evidence: regex removed; skip boosting to keep runtime lightweight
+
+            # "only" penalty if many other languages appear besides include
+            if must_only and include:
+                present_langs = {t for t in lang_tokens if t in text_blob}
+                extras_langs = present_langs - include
+                if len(extras_langs) >= 2:
+                    boost -= 0.08
+                elif len(extras_langs) == 1:
+                    boost -= 0.04
+
+            # Optional skills small boosts
+            if optional:
+                opt_matches = sum(1 for s in optional if _has(s))
+                boost += min(0.06, 0.02 * opt_matches)
+
+            # Titles / seniority / domains small boosts
+            if titles and any(_has(t) for t in titles):
+                boost += 0.03
+            if seniority and any(_has(s) for s in seniority):
+                boost += 0.02
+            if domains and any(_has(d) for d in domains):
+                boost += 0.03
+
+            final = max(0.0, min(1.0, float(best) + boost))
+            ranked.append((f, final))
         except Exception:
             continue
 
     ranked.sort(key=lambda x: x[1], reverse=True)
     out: List[Dict[str, Any]] = []
-    for f, score in ranked:
-        meta = best_meta.get(f, {})
-        out.append({
-            "file": f,
-            "best_score": round(score, 3),
-            "name": meta.get("name"),
-            "vector_collection": meta.get("vector_collection"),
-        })
-    return out
-
-
-def search_profiles_keyword(query: str, *, agent: str = "Recruiter", limit: int = 20) -> List[Dict[str, Any]]:
-    """Keyword/skills based search using SQLite FTS over enriched metadata."""
-    # Base metadata to attach names/vector collections
-    try:
-        rows = ingestion_db.list_documents(agent)
-    except Exception:
-        rows = []
-    by_file = {r.get("file"): r for r in rows if isinstance(r, dict)}
-
-    # FTS search
-    try:
-        fts_rows = ingestion_db.search_doc_keywords(agent, query, limit)
-    except Exception:
-        fts_rows = []
-
-    out: List[Dict[str, Any]] = []
-    for r in fts_rows:
-        f = r.get("file")
+    for f, score in (ranked[:top_n] if top_n and top_n > 0 else ranked):
         meta = by_file.get(f, {})
-        raw = float(r.get("score") or 0.0)  # bm25: lower is better
-        score = 1.0 / (1.0 + max(0.0, raw))  # map to 0..1 where higher is better
         out.append({
             "file": f,
             "best_score": round(score, 3),
