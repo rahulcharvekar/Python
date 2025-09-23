@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     # === OpenAI (prod) ===
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: str = Field(default="gpt-4.1")
-    OPENAI_EMBEDDING_MODEL: str = Field(default="text-embedding-3-small")
+    OPENAI_EMBEDDING_MODEL: str = Field(default="text-embedding-3-large")
 
     # === Local LLM (dev) — OpenAI-compatible server like Ollama ===
     # Ollama default shim: http://127.0.0.1:11434/v1  (ollama serve)
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # === Storage roots ===
     # Set BASE_DIR via env (e.g., BASE_DIR=/mnt/storage). Defaults to /mnt/storage in prod-like
     # environments; override locally as needed.
-    BASE_DIR: Path = Path("/mnt/storage")
+    BASE_DIR: Path = Path("mnt/storage")
 
     # Optional overrides via env; otherwise derived from BASE_DIR
     VECTOR_STORE_DIR: Optional[Path] = None
