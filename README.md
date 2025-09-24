@@ -17,22 +17,23 @@ Project Layout
 
 ## Agent + Tools Architecture
 
-This repo now exposes services as LangChain tools and routes requests through agents. You can:
+This repo routes chat requests through named agents with tool access. Use generic, agent‑scoped endpoints:
 
-- Use `/agent/query` to send a natural-language instruction; the agent will decide which tool to call.
-- You can keep using existing endpoints where relevant (e.g., `get_insights`), but prefer `/agent/query` for chat over files.
+- POST `/agent/{agent}/query` — send a query to a specific agent.
+- GET `/agent/{agent}/listfiles` — list files indexed for that agent.
+- GET `/agent/list` — list available agents and metadata.
 
 Key files:
 
-- `app/tools/` — LangChain tool wrappers around existing services
-  - `app/tools/chat_tools.py` — `chat_over_file(file, query)`
-  - `app/tools/insight_tools.py` — `initialize_insights(file)`
-  - `app/tools/registry_tools.py` — `list_files()`
+- `app/tools/` — LangChain tool wrappers around services
   - `app/tools/__init__.py` — central tool registry (`ALL_TOOLS`, `get_tools_by_names`)
 - `app/agents/` — agent wiring
-  - `app/agents/config.py` — define multiple agents, their tools, and prompts
-  - `app/agents/agent_factory.py` — build an AgentExecutor with selected tools
-- `app/api/agent.py` — `/agent/query` and `/agent/list` endpoints
+  - `app/agents/agent_config.py` — define agents, tools, prompts
+  - `app/agents/agent_factory.py` — builds `AgentExecutor`
+- `app/agent_processing/` — request handling
+  - `app/agent_processing/handlers/*.py` — per‑agent handlers
+  - `app/agent_processing/__init__.py` — `handle_agent_query`, `handle_agent_files`
+- `app/api/agent.py` — agent endpoints
 
 Add a tool:
 
@@ -43,20 +44,48 @@ Add a tool:
 Add an agent:
 
 1. Add a new entry in `app/agents/config.py` with a unique name, `tools` list, and `system_prompt`.
-2. Call `/agent/query` with `{ "agent": "your_agent", "input": "..." }`.
+2. Call `POST /agent/{agent}/query` with `{ "input": "..." }`.
 
-Example requests:
+Agents API
+- List agents
+  - `GET /agent/list`
+- List files for an agent
+  - `GET /agent/{agent}/listfiles`
+- Query an agent
+  - `POST /agent/{agent}/query`
+  - Body: `{ "input": string, "session_id"?: string, "filename"?: string, "extra_tools"?: string[] }`
 
+Behavior notes
+- DocHelp
+  - If `filename` is provided and valid: pins to session and chats over that file.
+  - Otherwise: uses session‑selected file; if multiple exist and none selected, asks the client to choose.
+- Recruiter
+  - Interprets every query via intent parsing to shortlist relevant resumes.
+  - If `filename` provided (or session has one): chats over that resume.
+  - If none provided: returns a ranked shortlist or auto‑selects a top valid file to answer.
+
+Examples
 ```
-POST /agent/query
-{
-  "input": "Initialize or update the vector index for file 'mydoc.pdf'"
-}
+# List available agents
+curl -s http://localhost:8000/agent/list
 
-POST /agent/query
-{
-  "input": "Answer using file 'mydoc.pdf': what are the payment terms?"
-}
+# List files for DocHelp
+curl -s http://localhost:8000/agent/DocHelp/listfiles
+
+# Intent search (Recruiter)
+curl -s -X POST http://localhost:8000/agent/Recruiter/query \
+  -H 'Content-Type: application/json' \
+  -d '{"input":"Looking for iOS Swift engineers in SF"}'
+
+# Q&A over a specific resume (Recruiter)
+curl -s -X POST http://localhost:8000/agent/Recruiter/query \
+  -H 'Content-Type: application/json' \
+  -d '{"input":"Summarize strengths","filename":"JaneDoe.pdf"}'
+
+# Q&A over a DocHelp file
+curl -s -X POST http://localhost:8000/agent/DocHelp/query \
+  -H 'Content-Type: application/json' \
+  -d '{"input":"What are the payment terms?","filename":"FAQ.pdf","session_id":"abc123"}'
 ```
 - `app/core/config.py` — central settings with sensible defaults.
 - `uploads/`, `vector_store/`, `db_store/`, `logs/` — runtime storage.
@@ -97,8 +126,10 @@ Endpoints
   - `GET /upload/getall`
 - Build embeddings for a file
   - `POST /get_insights/{file}`
-- Chat over a file
-  - Prefer `POST /agent/query` with input instructing the agent which file and question to use.
+- Agents
+  - `GET /agent/list`
+  - `GET /agent/{agent}/listfiles`
+  - `POST /agent/{agent}/query`
 
 Embedding Alignment Details
 - In development (`APP_ENV=development`):

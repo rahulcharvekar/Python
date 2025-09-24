@@ -31,9 +31,27 @@ class DocHelpHandler(AgentHandler):
             session_append_ai(ctx.session_id, msg)
             return AgentResult(response=msg, session_id=ctx.session_id)
 
-        # Session-pinned file selection for DocHelp
+        # Filename override via API payload: pin to session and use directly
         active_key = "active_file:DocHelp"
-        active_file = SessionMemory.get_kv(ctx.session_id or "", active_key) if ctx.session_id else None
+        active_file = None
+        if ctx.file_override:
+            if ctx.file_override in known_files:
+                active_file = ctx.file_override
+                if ctx.session_id:
+                    SessionMemory.set_kv(ctx.session_id, active_key, active_file)
+            else:
+                options = ", ".join(known_files[:10]) + (" …" if len(known_files) > 10 else "")
+                msg = (
+                    f"File not found: {ctx.file_override}. Please provide an exact filename." +
+                    (f" Options: {options}" if options else "")
+                )
+                session_append_user(ctx.session_id, ctx.input_text)
+                session_append_ai(ctx.session_id, msg)
+                return AgentResult(response=msg, session_id=ctx.session_id)
+
+        # Session-pinned file selection for DocHelp (fallback when no override)
+        if not active_file:
+            active_file = SessionMemory.get_kv(ctx.session_id or "", active_key) if ctx.session_id else None
 
         # If user mentions a known filename explicitly, pin it
         lowered = (ctx.input_text or "").lower()
@@ -54,7 +72,7 @@ class DocHelpHandler(AgentHandler):
                     SessionMemory.set_kv(ctx.session_id, active_key, active_file)
             else:
                 options = ", ".join(known_files[:10]) + (" …" if len(known_files) > 10 else "")
-                msg = f"Multiple files are available for this agent. Please reply with the exact filename to use. Options: {options}"
+                msg = f"Multiple files are available for this agent. Please provide 'filename' in the request or reply with the exact filename to use. Options: {options}"
                 session_append_user(ctx.session_id, ctx.input_text)
                 session_append_ai(ctx.session_id, msg)
                 return AgentResult(response=msg, session_id=ctx.session_id)
