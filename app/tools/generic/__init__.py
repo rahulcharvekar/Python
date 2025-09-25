@@ -207,7 +207,7 @@ def list_agent_files(agent: str) -> str:
     List files registered for the specified agent (from the JSON registry under uploads).
 
     Args:
-        agent: Agent name to filter by (e.g., DocHelp, Recruiter).
+        agent: Agent name to filter by (e.g., DocHelp).
 
     Returns:
         A JSON-like string: { files: [...] }.

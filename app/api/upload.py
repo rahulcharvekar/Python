@@ -6,7 +6,7 @@ from app.services.generic import upload_service
 from app.core.config import settings
 from app.utils.fileops.fileutils import hash_file
 from app.services.generic import insight_services, ingestion_db
-from app.services.agents import recruiter_service, dochelp_service
+from app.services.agents import dochelp_service
 from app.utils.Logging.logger import logger
 
 
@@ -48,8 +48,15 @@ def _ensure_index_and_update_db(agent: str | None, file_name: str) -> None:
             row = None
 
         title = (row or {}).get("title") if isinstance(row, dict) else None
+        keywords = (row or {}).get("keywords") if isinstance(row, dict) else None
 
-        ingestion_db.upsert_document(agent=agent, file=file_name, title=title, vector_collection=str(collection or ""))
+        ingestion_db.upsert_document(
+            agent=agent,
+            file=file_name,
+            title=title,
+            vector_collection=str(collection or ""),
+            keywords=keywords,
+        )
     except Exception as e:
         logger.error("Error ensuring updating db %s: %s", file_name, e)
     
@@ -64,9 +71,7 @@ def _index_and_enrich(agent: str, file_name: str) -> None:
         pass
     try:
         al = (agent or "").lower()
-        if al in ("recruiter", "myprofile"):
-            recruiter_service.enrich_resume(file_name, agent=agent)
-        elif al == "dochelp":
+        if al == "dochelp":
             dochelp_service.ingest_document(file_name, agent=agent)
     except Exception as e:
         logger.warning("Enrichment failed | agent=%s | file=%s | err=%s", agent, file_name, e)

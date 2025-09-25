@@ -1,8 +1,6 @@
-from typing import Optional, List
+from typing import List
 from ..base import AgentHandler, AgentContext, AgentResult
-from ..common import run_agent, session_append_ai, session_append_user
-from app.agents.session_memory import SessionMemory
-from app.core.config import settings
+from ..common import run_agent, select_unique_files
 import os
 from app.services.generic import ingestion_db
 
@@ -27,31 +25,28 @@ class DocHelpHandler(AgentHandler):
                 "This assistant answers questions grounded in uploaded files. "
                 "Please upload a file and ask your question about it."
             )
-            session_append_user(ctx.session_id, ctx.input_text)
-            session_append_ai(ctx.session_id, msg)
-            return AgentResult(response=msg, session_id=ctx.session_id)
+
+            return AgentResult(response=msg, session_id=ctx.session_id, files=[])
 
         # Filename override via API payload: pin to session and use directly
-        active_key = "active_file:DocHelp"
         active_file = None
+        selected_via_payload = False
         if ctx.file_override:
             if ctx.file_override in known_files:
                 active_file = ctx.file_override
-                if ctx.session_id:
-                    SessionMemory.set_kv(ctx.session_id, active_key, active_file)
+                selected_via_payload = True
             else:
                 options = ", ".join(known_files[:10]) + (" …" if len(known_files) > 10 else "")
                 msg = (
                     f"File not found: {ctx.file_override}. Please provide an exact filename." +
                     (f" Options: {options}" if options else "")
                 )
-                session_append_user(ctx.session_id, ctx.input_text)
-                session_append_ai(ctx.session_id, msg)
-                return AgentResult(response=msg, session_id=ctx.session_id)
+
+                return AgentResult(response=msg, session_id=ctx.session_id, files=[])
 
         # Session-pinned file selection for DocHelp (fallback when no override)
         if not active_file:
-            active_file = SessionMemory.get_kv(ctx.session_id or "", active_key) if ctx.session_id else None
+            active_file = None
 
         # If user mentions a known filename explicitly, pin it
         lowered = (ctx.input_text or "").lower()
@@ -60,22 +55,21 @@ class DocHelpHandler(AgentHandler):
             if f.lower() in lowered:
                 mentioned = f
                 break
-        if mentioned and ctx.session_id:
-            SessionMemory.set_kv(ctx.session_id, active_key, mentioned)
+        if mentioned:
             active_file = mentioned
 
-        # If still no active file: auto-select if only one, else ask user to choose
+        # Require explicit file selection before running the agent
         if not active_file:
             if len(known_files) == 1:
                 active_file = known_files[0]
-                if ctx.session_id:
-                    SessionMemory.set_kv(ctx.session_id, active_key, active_file)
             else:
                 options = ", ".join(known_files[:10]) + (" …" if len(known_files) > 10 else "")
-                msg = f"Multiple files are available for this agent. Please provide 'filename' in the request or reply with the exact filename to use. Options: {options}"
-                session_append_user(ctx.session_id, ctx.input_text)
-                session_append_ai(ctx.session_id, msg)
-                return AgentResult(response=msg, session_id=ctx.session_id)
+                msg = (
+                    "Please specify which uploaded file to use before continuing. "
+                    + (f"Options: {options}" if options else "No files found in storage.")
+                )
+
+                return AgentResult(response=msg, session_id=ctx.session_id, files=[])
 
         # Run the selected agent (DocHelp or similarly configured)
         input_text = ctx.input_text
@@ -89,5 +83,8 @@ class DocHelpHandler(AgentHandler):
             session_id=ctx.session_id,
             prompt_vars={"doc_file": active_file} if active_file else None,
         )
-        session_append_ai(ctx.session_id, output if isinstance(output, str) else str(output))
-        return AgentResult(response=output, session_id=ctx.session_id)
+
+        files = []
+        if active_file and not selected_via_payload:
+            files = select_unique_files([active_file])
+        return AgentResult(response=output, session_id=ctx.session_id, files=files)

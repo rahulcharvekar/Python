@@ -1,23 +1,6 @@
-from typing import List, Optional, Any
+from typing import List, Optional,Sequence
 
 from app.agents.agent_factory import build_agent
-from app.agents.session_memory import SessionMemory
-
-
-def session_append_user(session_id: Optional[str], text: str) -> None:
-    if session_id:
-        SessionMemory.append_user(session_id, text)
-
-
-def session_append_ai(session_id: Optional[str], text: str) -> None:
-    if session_id and isinstance(text, str):
-        SessionMemory.append_ai(session_id, text)
-
-
-def session_get_history(session_id: Optional[str]) -> List[Any]:
-    if session_id:
-        return SessionMemory.get(session_id)
-    return []
 
 
 def run_agent(
@@ -30,9 +13,21 @@ def run_agent(
 ):
     executor = build_agent(agent_name, extra_tools=extra_tools, prompt_vars=prompt_vars)
     chat_history = []
-    if session_id:
-        session_append_user(session_id, input_text)
-        chat_history = session_get_history(session_id)
 
     result = executor.invoke({"input": input_text, "chat_history": chat_history})
     return result.get("output", result)
+
+
+def select_unique_files(file_names: Sequence[str]) -> List[str]:
+    """Return unique filenames in order, skipping blanks and non-strings."""
+    seen: set[str] = set()
+    output: List[str] = []
+    for name in file_names:
+        if not isinstance(name, str):
+            continue
+        normalized = name.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        output.append(normalized)
+    return output

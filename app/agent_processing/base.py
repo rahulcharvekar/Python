@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional, Protocol, Any
+from typing import Optional, Protocol, Any, List
 
 
 @dataclass
@@ -18,6 +18,7 @@ class AgentContext:
 class AgentResult:
     response: Any
     session_id: Optional[str]
+    files: Optional[List[str]] = None
 
 
 class AgentHandler(Protocol):

@@ -57,12 +57,8 @@ Agents API
 
 Behavior notes
 - DocHelp
-  - If `filename` is provided and valid: pins to session and chats over that file.
-  - Otherwise: uses session‑selected file; if multiple exist and none selected, asks the client to choose.
-- Recruiter
-  - Interprets every query via intent parsing to shortlist relevant resumes.
-  - If `filename` provided (or session has one): chats over that resume.
-  - If none provided: returns a ranked shortlist or auto‑selects a top valid file to answer.
+  - If `filename` is provided and valid: chats over that file.
+  - Otherwise: uses the selected file; if multiple exist and none selected, asks the client to choose.
 
 Examples
 ```
@@ -71,16 +67,6 @@ curl -s http://localhost:8000/agent/list
 
 # List files for DocHelp
 curl -s http://localhost:8000/agent/DocHelp/listfiles
-
-# Intent search (Recruiter)
-curl -s -X POST http://localhost:8000/agent/Recruiter/query \
-  -H 'Content-Type: application/json' \
-  -d '{"input":"Looking for iOS Swift engineers in SF"}'
-
-# Q&A over a specific resume (Recruiter)
-curl -s -X POST http://localhost:8000/agent/Recruiter/query \
-  -H 'Content-Type: application/json' \
-  -d '{"input":"Summarize strengths","filename":"JaneDoe.pdf"}'
 
 # Q&A over a DocHelp file
 curl -s -X POST http://localhost:8000/agent/DocHelp/query \

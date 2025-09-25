@@ -30,17 +30,44 @@ def _ensure_schema() -> None:
                 file TEXT NOT NULL,
                 title TEXT,                       -- display name or inferred subject
                 vector_collection TEXT,           -- collection name in vector DB
+                keywords TEXT,                    -- JSON array of keywords/skills
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 UNIQUE(agent, file)
             )
             """
         )
+        try:
+            conn.execute("ALTER TABLE documents ADD COLUMN keywords TEXT")
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
         conn.commit()
 
 
 def _ensure_search_schema() -> None:
     # FTS disabled: no-op to keep backward import compatibility
+    return None
+
+
+def _serialize_keywords(keywords: Optional[Any]) -> Optional[str]:
+    if keywords is None:
+        return None
+    if isinstance(keywords, str):
+        try:
+            # Ensure valid JSON list
+            parsed = json.loads(keywords)
+            if isinstance(parsed, list):
+                cleaned = [str(k).lower().strip() for k in parsed if isinstance(k, (str, int))]
+                return json.dumps([k for k in cleaned if k])
+        except json.JSONDecodeError:
+            pass
+        cleaned = [str(keywords).lower().strip()]
+        return json.dumps([k for k in cleaned if k])
+    if isinstance(keywords, (list, tuple, set)):
+        cleaned = [str(k).lower().strip() for k in keywords if isinstance(k, (str, int))]
+        deduped = list(dict.fromkeys([k for k in cleaned if k]))
+        return json.dumps(deduped)
     return None
 
 
@@ -50,15 +77,18 @@ def upsert_document(
     file: str,
     vector_collection: str,
     title: Optional[str] = None,
+    keywords: Optional[Any] = None,
 ) -> None:
     _ensure_schema()
     now = datetime.now(timezone.utc).isoformat()
+    serialized_keywords = _serialize_keywords(keywords)
     with _connect() as conn:
         payload = dict(
             agent=agent,
             file=file,
             title=title,
             vector_collection=vector_collection,
+            keywords=serialized_keywords,
             created_at=now,
             updated_at=now,
         )
@@ -74,6 +104,7 @@ def upsert_document(
                 UPDATE documents SET
                     title=:title,
                     vector_collection=:vector_collection,
+                    keywords=:keywords,
                     updated_at=:updated_at
                 WHERE agent=:agent AND file=:file
                 """,
@@ -83,9 +114,9 @@ def upsert_document(
             conn.execute(
                 """
                 INSERT INTO documents (
-                    agent, file, title, vector_collection, created_at, updated_at
+                    agent, file, title, vector_collection, keywords, created_at, updated_at
                 ) VALUES (
-                    :agent, :file, :title, :vector_collection, :created_at, :updated_at
+                    :agent, :file, :title, :vector_collection, :keywords, :created_at, :updated_at
                 )
                 """,
                 payload,
@@ -97,20 +128,35 @@ def list_documents(agent: str) -> List[Dict[str, Any]]:
     _ensure_schema()
     with _connect() as conn:
         cur = conn.execute(
-            "SELECT agent, file, title, vector_collection, created_at, updated_at FROM documents WHERE agent=? ORDER BY updated_at DESC",
+            """
+            SELECT agent, file, title, vector_collection, keywords, created_at, updated_at
+            FROM documents
+            WHERE agent=?
+            ORDER BY updated_at DESC
+            """,
             (agent,),
         )
         rows = cur.fetchall()
     out: List[Dict[str, Any]] = []
     for r in rows:
+        keywords: List[str] = []
+        raw_keywords = r[4]
+        if isinstance(raw_keywords, str) and raw_keywords:
+            try:
+                parsed = json.loads(raw_keywords)
+                if isinstance(parsed, list):
+                    keywords = [str(k).lower() for k in parsed if isinstance(k, (str, int))]
+            except json.JSONDecodeError:
+                keywords = [raw_keywords.lower()]
         out.append(
             {
                 "agent": r[0],
                 "file": r[1],
                 "title": r[2],
                 "vector_collection": r[3],
-                "created_at": r[4],
-                "updated_at": r[5],
+                "keywords": keywords,
+                "created_at": r[5],
+                "updated_at": r[6],
             }
         )
     return out

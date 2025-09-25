@@ -12,14 +12,12 @@ from .generic import (
     extract_keywords,
 )
 from .agent.dochelp_tools import chat_over_file, list_indexed_docs_db
-from .agent.recruiter_tools import enrich_resume, list_indexed_profiles_db, chat_over_profile
 
 
 # Central registry of all available tools for agents to use.
 # To add a new tool, export it from a module and append it here.
 ALL_TOOLS = [
     chat_over_file,
-    chat_over_profile,
     initialize_insights,
     list_agent_files,
     check_file_ready,
@@ -27,8 +25,6 @@ ALL_TOOLS = [
     normalize_query,
     reindex_file,
     extract_keywords,
-    enrich_resume,
-    list_indexed_profiles_db,
     list_indexed_docs_db,
 ]
 

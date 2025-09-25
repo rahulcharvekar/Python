@@ -37,40 +37,4 @@ AGENTS: Dict[str, dict] = {
             "Keep responses concise."
         ),
     },
-    # Recruiter agent for managing and chatting over resumes
-    "Recruiter": {
-        "description": "Recruiter assistant to upload, find, and chat over resumes",
-        "welcomemessage": (
-            "Welcome to Recruiter. I can help you work with resumes.\n"
-            "I will wait until you select a resume before answering questions."
-        ),
-        "commands": [
-            {"cmd": "/listfiles", "desc": "list uploaded resumes (agent=Recruiter)"},
-            {"cmd": "/selectresume <filename>", "desc": "select a resume for this chat"},
-            {"cmd": "/searchprofilellm <criteria>", "desc": "intent-aware search (LLM intent + vectors)"}
-        ],
-        "examples": [
-            " /listfiles",
-            " /selectresume john_doe_resume.pdf",
-            " /searchprofilellm java only, pune, 10+ years",
-            " /upload",
-            " Summarize the selected candidate's backend experience",
-        ],
-        "capabilities": ["Recruiting", "Upload Enabled", "Search", "AI"],
-        "tools": [
-            "list_agent_files",
-            "chat_over_profile",
-            "check_file_ready",
-            "list_indexed_profiles_db",
-        ],
-        "system_prompt": (
-            "You are a recruiter assistant operating over uploaded resumes.\n"
-            "If a resume is selected for this session, it is provided as {doc_file}.\n"
-            "Policy:\n"
-            "- When {doc_file} is set, restrict all tool calls to that file only.\n"
-            "- First call initialize_insights(file) with {doc_file} (idempotent), then call chat_over_file(file, query) to answer in the same turn.\n"
-            "- If no file is selected, ask the user to select one (suggest typing /listfiles and /selectresume <filename>).\n"
-            "- Keep responses concise and candidate-focused.\n"
-        ),
-    },
 }

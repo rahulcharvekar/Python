@@ -4,6 +4,16 @@ from .base import AgentContext
 from app.services.generic import ingestion_db
 
 
+def _summarize_query(text: Optional[str], max_length: int = 120) -> str:
+    """Return a condensed single-line summary of the user query."""
+    if not text:
+        return "your request"
+    summary = " ".join(text.split())
+    if len(summary) > max_length:
+        summary = summary[: max_length - 1].rstrip() + "…"
+    return summary or "your request"
+
+
 def handle_agent_query(
     *,
     input_text: str,
@@ -26,7 +36,17 @@ def handle_agent_query(
 
     handler = get_handler(agent)
     result = handler.handle(ctx)
-    return {"response": result.response, "session_id": result.session_id}
+
+    files = result.files or []
+    response_payload = result.response
+    if files:
+        response_payload = f"Please find the filtered files for your query: {_summarize_query(input_text)}"
+
+    return {
+        "response": response_payload,
+        "session_id": result.session_id,
+        "files": files,
+    }
 
 
 def handle_agent_files(*, agent: Optional[str]) -> Dict[str, Any]:
@@ -36,7 +56,6 @@ def handle_agent_files(*, agent: Optional[str]) -> Dict[str, Any]:
     """
     name = agent or "DocHelp"
     allowed_by_agent = {
-        "Recruiter": {".pdf", ".txt", ".md", ".docx", ".doc"},
         "DocHelp": {".pdf", ".csv", ".txt", ".md", ".docx", ".doc"},
     }
     allowed = allowed_by_agent.get(name, {".pdf", ".csv", ".txt", ".md", ".docx", ".doc"})
@@ -54,8 +73,12 @@ def handle_agent_files(*, agent: Optional[str]) -> Dict[str, Any]:
         if ext.lower() not in allowed:
             continue
         files.append({
+            "agent": r.get("agent") if isinstance(r, dict) else None,
             "file": f,
             "title": r.get("title") if isinstance(r, dict) else None,
+            "vector_collection": r.get("vector_collection") if isinstance(r, dict) else None,
+            "keywords": r.get("keywords") if isinstance(r, dict) else None,
+            "created_at": r.get("created_at") if isinstance(r, dict) else None,
             "updated_at": r.get("updated_at") if isinstance(r, dict) else None,
         })
     return {"files": files}

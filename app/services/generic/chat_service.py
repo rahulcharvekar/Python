@@ -150,8 +150,8 @@ def retrieve(
     """
     collection = _collection_name_from(file)
     logger.info(
-        "Retrieving | file=%s | dir=%s | collection=%s | k=%s | threshold=%.2f | strict=%s",
-        file, settings.VECTOR_STORE_DIR, collection, k, score_threshold, strict,
+        "Retrieving | file=%s | dir=%s | collection=%s | k=%s | threshold=%.2f | strict=%s | query=%s",
+        file, settings.VECTOR_STORE_DIR, collection, k, score_threshold, strict, query,
     )
 
     vs = _get_vectorstore(collection)
