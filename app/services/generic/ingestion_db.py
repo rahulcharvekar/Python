@@ -82,9 +82,21 @@ def upsert_document(
     _ensure_schema()
     now = datetime.now(timezone.utc).isoformat()
     serialized_keywords = _serialize_keywords(keywords)
+    agent_name = (agent or "").strip().lower()
+    if not agent_name:
+        raise ValueError("agent name required for document upsert")
+
     with _connect() as conn:
+        # Look for an existing row ignoring agent casing so uploads with
+        # 'dochelp' and 'DocHelp' collapse to the same record.
+        cur = conn.execute(
+            "SELECT id FROM documents WHERE LOWER(agent)=? AND file=?",
+            (agent_name, file),
+        )
+        row = cur.fetchone()
+
         payload = dict(
-            agent=agent,
+            agent=agent_name,
             file=file,
             title=title,
             vector_collection=vector_collection,
@@ -92,12 +104,9 @@ def upsert_document(
             created_at=now,
             updated_at=now,
         )
-        cur = conn.execute(
-            "SELECT id FROM documents WHERE agent=? AND file=?",
-            (agent, file),
-        )
-        row = cur.fetchone()
+
         if row:
+            row_id = row[0]
             payload["updated_at"] = now
             conn.execute(
                 """
@@ -105,10 +114,11 @@ def upsert_document(
                     title=:title,
                     vector_collection=:vector_collection,
                     keywords=:keywords,
-                    updated_at=:updated_at
-                WHERE agent=:agent AND file=:file
+                    updated_at=:updated_at,
+                    agent=:agent
+                WHERE id=:id
                 """,
-                payload,
+                {**payload, "id": row_id},
             )
         else:
             conn.execute(
@@ -126,15 +136,18 @@ def upsert_document(
 
 def list_documents(agent: str) -> List[Dict[str, Any]]:
     _ensure_schema()
+    agent_name = (agent or "").strip().lower()
+    if not agent_name:
+        return []
     with _connect() as conn:
         cur = conn.execute(
             """
             SELECT agent, file, title, vector_collection, keywords, created_at, updated_at
             FROM documents
-            WHERE agent=?
+            WHERE LOWER(agent)=?
             ORDER BY updated_at DESC
             """,
-            (agent,),
+            (agent_name,),
         )
         rows = cur.fetchall()
     out: List[Dict[str, Any]] = []
@@ -172,8 +185,3 @@ def upsert_doc_keywords(
 ) -> None:
     # FTS disabled: no-op to maintain compatibility
     return None
-
-
-def search_doc_keywords(agent: str, query: str, limit: int = 20) -> List[Dict[str, Any]]:
-    """FTS disabled: return empty results."""
-    return []

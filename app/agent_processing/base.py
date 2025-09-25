@@ -8,10 +8,9 @@ from typing import Optional, Protocol, Any, List
 class AgentContext:
     input_text: str
     agent_name: str
-    extra_tools: Optional[list[str]]
-    session_id: Optional[str]
-    # Optional per-request file selection that overrides session selection
-    file_override: Optional[str] = None
+    filename: Optional[str] = None
+    extra_tools: Optional[list[str]] = None
+    session_id: Optional[str] = None
 
 
 @dataclass

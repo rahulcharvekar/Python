@@ -4,16 +4,6 @@ from .base import AgentContext
 from app.services.generic import ingestion_db
 
 
-def _summarize_query(text: Optional[str], max_length: int = 120) -> str:
-    """Return a condensed single-line summary of the user query."""
-    if not text:
-        return "your request"
-    summary = " ".join(text.split())
-    if len(summary) > max_length:
-        summary = summary[: max_length - 1].rstrip() + "…"
-    return summary or "your request"
-
-
 def handle_agent_query(
     *,
     input_text: str,
@@ -26,24 +16,23 @@ def handle_agent_query(
     Entry point for processing an agent query. Selects the agent, builds context,
     delegates to the appropriate handler, and returns a response dict.
     """
+    agent_name = (agent or "dochelp").lower()
+
     ctx = AgentContext(
         input_text=input_text,
-        agent_name=agent,
+        agent_name=agent_name,
+        filename=filename,
         extra_tools=extra_tools,
         session_id=session_id,
-        file_override=filename,
     )
 
-    handler = get_handler(agent)
+    handler = get_handler(agent_name)
     result = handler.handle(ctx)
 
     files = result.files or []
-    response_payload = result.response
-    if files:
-        response_payload = f"Please find the filtered files for your query: {_summarize_query(input_text)}"
 
     return {
-        "response": response_payload,
+        "response": result.response,
         "session_id": result.session_id,
         "files": files,
     }
@@ -54,9 +43,9 @@ def handle_agent_files(*, agent: Optional[str]) -> Dict[str, Any]:
 
     Output shape: {"files": [{"file": str, "title": str|None, "updated_at": Any}]}
     """
-    name = agent or "DocHelp"
+    name = (agent or "dochelp").lower()
     allowed_by_agent = {
-        "DocHelp": {".pdf", ".csv", ".txt", ".md", ".docx", ".doc"},
+        "dochelp": {".pdf", ".csv", ".txt", ".md", ".docx", ".doc"},
     }
     allowed = allowed_by_agent.get(name, {".pdf", ".csv", ".txt", ".md", ".docx", ".doc"})
     try:

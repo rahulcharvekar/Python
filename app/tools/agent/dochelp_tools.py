@@ -15,8 +15,8 @@ def chat_over_file(file: str, query: str) -> str:
     result = chat_service.answer(
         file,
         query,
-        k=12,
-        score_threshold=0.45,
+        k=24,
+        score_threshold=0.0,
         strict=False,
     )
     if isinstance(result, dict) and "response" in result:

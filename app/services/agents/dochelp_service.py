@@ -6,7 +6,7 @@ from typing import Dict, Any, List
 from app.services.generic import ingestion_db, insight_services
 
 
-def ingest_document(file: str, *, agent: str = "DocHelp") -> Dict[str, Any]:
+def ingest_document(file: str, *, agent: str = "dochelp") -> Dict[str, Any]:
     # Obtain vector collection from DB (set during upload indexing). Do not create here.
     try:
         rows = ingestion_db.list_documents(agent)
@@ -45,7 +45,7 @@ def ingest_document(file: str, *, agent: str = "DocHelp") -> Dict[str, Any]:
     }
 
 
-def list_indexed_docs(agent: str = "DocHelp") -> List[Dict[str, Any]]:
+def list_indexed_docs(agent: str = "dochelp") -> List[Dict[str, Any]]:
     rows = ingestion_db.list_documents(agent)
     out: List[Dict[str, Any]] = []
     for r in rows:

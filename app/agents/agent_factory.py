@@ -83,7 +83,7 @@ def build_agent(
         ("system", system_prompt),
         MessagesPlaceholder(variable_name="chat_history"),
         ("human", "{input}"),
-        ("placeholder", "{agent_scratchpad}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"),
     ])
 
     llm_overrides = cfg.get("llm") if isinstance(cfg.get("llm"), dict) else None

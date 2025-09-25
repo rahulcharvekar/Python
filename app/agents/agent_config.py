@@ -9,7 +9,7 @@ from typing import Dict
 #   Add new variables by referencing them in the agent's `system_prompt` and supplying them
 #   from the corresponding handler.
 AGENTS: Dict[str, dict] = {
-    "DocHelp": {
+    "dochelp": {
         "description": "General assistant over uploaded documents",
         "welcomemessage": "Welcome! I can help answer questions about your uploaded documents. Upload a file and ask away.",
         "commands": [],

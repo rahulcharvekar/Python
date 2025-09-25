@@ -64,17 +64,16 @@ def _ensure_index_and_update_db(agent: str | None, file_name: str) -> None:
 
 def _index_and_enrich(agent: str, file_name: str) -> None:
     """Ensure vectors, persist collection in DB, then enrich metadata per agent."""
+    agent_name = (agent or "").strip().lower()
+    if not agent_name:
+        return
     try:
-        _ensure_index_and_update_db(agent, file_name)
+        _ensure_index_and_update_db(agent_name, file_name)
     except Exception:
         # Continue to enrichment even if index update had issues (best-effort)
         pass
-    try:
-        al = (agent or "").lower()
-        if al == "dochelp":
-            dochelp_service.ingest_document(file_name, agent=agent)
-    except Exception as e:
-        logger.warning("Enrichment failed | agent=%s | file=%s | err=%s", agent, file_name, e)
+
+    dochelp_service.ingest_document(file_name, agent=agent_name)
 
 
 @router.post("/simple")
@@ -94,11 +93,10 @@ async def simple_upload(
     target_path = Path(settings.UPLOAD_DIR) / file.filename
     existed = target_path.exists()
     await upload_service.upload_file(file)
-    msg = (
-        f"File \"{file.filename}\" already exists; you can ask questions about this file anyways"
-        if existed
-        else f"File : {file.filename}, uploaded successfully."
-    )
+    if existed:
+        msg = f"File \"{file.filename}\" already exists; you can chat over it right away."
+    else:
+        msg = f"File '{file.filename}' uploaded successfully."
 
     file_path = Path(settings.UPLOAD_DIR) / file.filename
     file_hash = None
