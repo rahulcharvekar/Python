@@ -1,22 +1,12 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Dict, List, Optional
 
 from app.utils.Logging.logger import logger
 from app.services.generic import chat_service
 
-
-# Small set of common programming languages/skills for simple heuristics
-_LANG_TOKENS = {
-    "java", "j2ee", "spring", "springboot", "microservices",
-    "python", "django", "flask", "fastapi",
-    "javascript", "typescript", "node", "nodejs", "react",
-    "c", "c++", "cpp", "c#", "csharp",
-    "go", "golang", "ruby", "rails", "php",
-    "scala", "kotlin", "rust", "swift", "objective-c",
-    "kafka", "aws", "gcp", "azure", "sql", "spark", "hadoop",
-}
 
 _SYNONYMS = {
     "java": ["java", "j2ee", "spring", "springboot"],
@@ -25,6 +15,71 @@ _SYNONYMS = {
     "csharp": ["c#", "csharp", ".net", "dotnet"],
     "golang": ["go", "golang"],
 }
+
+_LANGUAGE_TOKENS = {
+    "java", "python", "javascript", "js", "typescript", "node", "nodejs",
+    "react", "angular", "vue", "c", "c++", "cpp", "c#", "csharp", ".net", "dotnet",
+    "go", "golang", "ruby", "rails", "php", "swift", "kotlin", "scala", "rust",
+    "dart", "flutter", "spark", "hadoop", "sql", "nosql", "aws", "gcp", "azure",
+}
+
+
+def _heuristic_skills_from_query(query: str) -> List[str]:
+    """Extract obvious skill tokens from raw text when LLM output is empty."""
+    tokens = re.findall(r"[a-zA-Z0-9\+#\.]+", query.lower())
+    hits: List[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        if token in _LANGUAGE_TOKENS and token not in seen:
+            seen.add(token)
+            hits.append(token)
+    return hits
+
+
+def _llm_keywords_from_query(query: str) -> List[str]:
+    """Ask the LLM for a compact keyword list when structured parsing is empty."""
+    prompt = (
+        "Extract up to 10 concise search keywords from the request below. "
+        "Return STRICT JSON: {\\n  keywords: string[]\\n}. "
+        "Use lowercase words or short phrases, omit duplicates, and include only items directly implied."
+    )
+    user = (query or "").strip()
+    if not user:
+        return []
+    try:
+        client = chat_service.client
+        model = chat_service.CHAT_MODEL
+        if hasattr(client, "chat_completions"):
+            chat = client.chat_completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": user},
+                ],
+                temperature=0,
+                response_format={"type": "json_object"},
+            )
+        else:
+            chat = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": user},
+                ],
+                temperature=0,
+            )
+        raw = chat.choices[0].message.content or "{}"
+        data = json.loads(raw)
+        keywords = data.get("keywords") or []
+        cleaned = [str(k).lower().strip() for k in keywords if isinstance(k, (str, int))]
+        deduped = list(dict.fromkeys([k for k in cleaned if k]))
+        return deduped
+    except Exception as exc:
+        try:
+            logger.debug("intent_service keyword fallback failed: %s", exc)
+        except Exception:
+            pass
+        return []
 
 
 def _llm_parse(query: str) -> Optional[Dict[str, Any]]:
@@ -116,6 +171,23 @@ def parse_criteria_llm(query: str) -> Dict[str, Any]:
     top_n = data.get("top_n") if isinstance(data.get("top_n"), int) else None
     sort_by = data.get("sort_by") if isinstance(data.get("sort_by"), str) else None
 
+    # Heuristic skill capture if LLM missed obvious tokens
+    heuristic_skills = _heuristic_skills_from_query(query)
+    if heuristic_skills and not include and not required:
+        include = heuristic_skills
+    elif heuristic_skills:
+        for skill in heuristic_skills:
+            if skill not in include:
+                include.append(skill)
+
+    if not include and not required:
+        inferred_keywords = _llm_keywords_from_query(query)
+        if inferred_keywords:
+            include = inferred_keywords
+            extras.extend(inferred_keywords)
+
+    extras = list(dict.fromkeys([x for x in extras if x]))
+
     # If all empty, fallback
     # If parsing yields nothing, return an empty-but-valid structure; ranking will rely on vectors alone.
     if not any([include, required, optional, exclude, locations, titles, seniority, domains, extras, min_years, max_years, recent_years, must_only, require_all, remote_mode, availability_days, immediate, top_n, sort_by]):
@@ -139,6 +211,7 @@ def parse_criteria_llm(query: str) -> Dict[str, Any]:
             "top_n": None,
             "sort_by": None,
             "extras": [],
+            "raw_query": query.strip(),
         }
 
     return {
@@ -161,6 +234,7 @@ def parse_criteria_llm(query: str) -> Dict[str, Any]:
         "top_n": top_n,
         "sort_by": sort_by,
         "extras": extras[:8],
+        "raw_query": query.strip(),
     }
 
 
@@ -178,6 +252,7 @@ def rewrite_query(criteria: Dict[str, Any]) -> str:
     min_years = criteria.get("min_years")
     recent_years = criteria.get("recent_years")
     must_only = bool(criteria.get("must_only"))
+    raw_query = str(criteria.get("raw_query") or "").strip()
 
     skill_terms: List[str] = []
     for s in inc:
@@ -211,7 +286,9 @@ def rewrite_query(criteria: Dict[str, Any]) -> str:
         parts.append("domains: " + ", ".join(domains))
     if extras:
         parts.append("extras: " + ", ".join(extras[:6]))
+    if raw_query:
+        parts.append("query: " + raw_query)
 
     # Keep a compact, natural query string to guide retrieval
     query = " | ".join(parts) if parts else ""
-    return query or "relevant experience and skills"
+    return query or raw_query or "relevant experience and skills"

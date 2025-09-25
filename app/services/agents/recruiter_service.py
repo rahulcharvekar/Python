@@ -1,28 +1,42 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
 from app.services.generic import profile_text, ingestion_db, chat_service
 from app.services.generic import intent_service
+from app.services.generic.keyword_utils import extract_keywords
 
 
 def enrich_resume(file: str, *, agent: str = "Recruiter") -> Dict[str, Any]:
-    # Minimal enrichment without regex: persist document row; skip keyword/skill extraction.
-    _text, loader = profile_text.load_text(file)
+    text, loader = profile_text.load_text(file)
+    keywords = extract_keywords(text)
     try:
         rows = ingestion_db.list_documents(agent)
         row = next((r for r in rows if isinstance(r, dict) and r.get("file") == file), None)
         collection = (row or {}).get("vector_collection") if isinstance(row, dict) else None
+        title = (row or {}).get("title") if isinstance(row, dict) else None
     except Exception:
         collection = None
+        title = None
 
-    ingestion_db.upsert_document(agent=agent, file=file, title=None, vector_collection=str(collection or ""))
+    if not title:
+        title = Path(file).stem
+
+    ingestion_db.upsert_document(
+        agent=agent,
+        file=file,
+        title=title,
+        vector_collection=str(collection or ""),
+        keywords=keywords,
+    )
 
     return {
         "file": file,
         "loader": loader,
         "collection": collection,
-        "skills": [],
+        "skills": keywords[:20],
         "name": None,
     }
 
@@ -39,6 +53,7 @@ def list_indexed_profiles(agent: str = "Recruiter") -> List[Dict[str, Any]]:
                 "file": r.get("file"),
                 "name": r.get("title"),
                 "vector_collection": r.get("vector_collection"),
+                "keywords": r.get("keywords"),
                 "updated_at": r.get("updated_at"),
             }
         )
@@ -87,10 +102,62 @@ def search_profiles_intent_llm(
         rows_kw = ingestion_db.list_documents(agent)
     except Exception:
         rows_kw = []
-    by_file = {r.get("file"): r for r in rows_kw if isinstance(r, dict)}
+    by_file = {r.get("file"): r for r in rows_kw if isinstance(r, dict) and r.get("file")}
 
-    # Candidates: all files (FTS disabled); rely on vectors for ranking.
-    candidates: List[str] = [f for f in by_file.keys()]
+    keyword_index: Dict[str, set[str]] = {}
+    for file_name, meta in by_file.items():
+        raw_keywords = meta.get("keywords") or []
+        if isinstance(raw_keywords, str):
+            try:
+                parsed = json.loads(raw_keywords)
+                raw_keywords = parsed if isinstance(parsed, list) else [raw_keywords]
+            except Exception:
+                raw_keywords = [raw_keywords]
+        normalized = {
+            str(k).lower().strip()
+            for k in (raw_keywords or [])
+            if isinstance(k, (str, int)) and str(k).strip()
+        }
+        keyword_index[file_name] = normalized
+
+    # Build intent term set from parsed criteria
+    intent_terms: set[str] = set()
+    for bucket in (
+        criteria.get("include_skills"),
+        criteria.get("required_skills"),
+        criteria.get("optional_skills"),
+    ):
+        for token in bucket or []:
+            if isinstance(token, (str, int)):
+                intent_terms.add(str(token).lower().strip())
+    for extra in criteria.get("extras") or []:
+        if not isinstance(extra, (str, int)):
+            continue
+        token = str(extra).lower().strip()
+        if not token:
+            continue
+        intent_terms.add(token)
+        for part in token.replace("/", " ").replace(",", " ").split():
+            part = part.strip()
+            if len(part) >= 3:
+                intent_terms.add(part)
+
+    shortlist: List[Tuple[str, int]] = []
+    if intent_terms:
+        for file_name, kw_set in keyword_index.items():
+            if not kw_set:
+                continue
+            overlap = kw_set & intent_terms
+            if overlap:
+                shortlist.append((file_name, len(overlap)))
+
+    if shortlist:
+        shortlist.sort(key=lambda item: item[1], reverse=True)
+        candidates = [f for (f, _score) in shortlist[:shortlist_limit]]
+    else:
+        candidates = list(by_file.keys())
+
+    candidates = list(dict.fromkeys([c for c in candidates if c]))
 
     # 3) Retrieve and score
     min_score = 0.30
