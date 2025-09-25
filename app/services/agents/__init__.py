@@ -1,6 +1,5 @@
-"""Agent-specific service layer.
+"""Service helpers for agent-specific workflows."""
 
-This package holds non-tool business logic for each agent,
-so LangChain tool wrappers can stay thin and reusable.
-"""
+from . import dochelp_service
 
+__all__ = ["dochelp_service"]

@@ -13,6 +13,7 @@ AGENTS: Dict[str, dict] = {
         "description": "General assistant over uploaded documents",
         "welcomemessage": "Welcome! I can help answer questions about your uploaded documents. Upload a file and ask away.",
         "commands": [],
+        "keyword_search": "no",
         "examples": [
             "What are the key terms in invoice_0423.pdf?",
             "Summarize the main findings in report_q2.pdf",

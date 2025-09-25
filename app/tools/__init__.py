@@ -9,7 +9,6 @@ from .generic import (
     normalize_query,
     reindex_file,
     list_agent_files,
-    extract_keywords,
 )
 from .agent.dochelp_tools import chat_over_file, list_indexed_docs_db
 
@@ -24,7 +23,6 @@ ALL_TOOLS = [
     build_context,
     normalize_query,
     reindex_file,
-    extract_keywords,
     list_indexed_docs_db,
 ]
 

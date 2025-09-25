@@ -3,14 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Any, List
 
-from app.services.generic import profile_text, ingestion_db, insight_services
-from app.services.generic.keyword_utils import extract_keywords
+from app.services.generic import ingestion_db, insight_services
 
 
 def ingest_document(file: str, *, agent: str = "DocHelp") -> Dict[str, Any]:
-    text, loader = profile_text.load_text(file)
-    keywords = extract_keywords(text)
-
     # Obtain vector collection from DB (set during upload indexing). Do not create here.
     try:
         rows = ingestion_db.list_documents(agent)
@@ -25,29 +21,27 @@ def ingest_document(file: str, *, agent: str = "DocHelp") -> Dict[str, Any]:
         file=file,
         title=stem,
         vector_collection=str(collection or ""),
-        keywords=keywords,
+        keywords=None,
     )
 
     # Add a compact facts document into the same vector collection to help retrieval
     try:
         facts_lines = [
             f"Title: {stem}",
-            f"Keywords: {', '.join(keywords or [])}",
             f"SourceFile: {file}",
         ]
         insight_services.add_facts_document(
             file,
             "\n".join(facts_lines),
-            metadata={"type": "facts", "title": stem, "keywords": keywords or []},
+            metadata={"type": "facts", "title": stem},
         )
     except Exception:
         pass
     return {
         "file": file,
-        "loader": loader,
         "collection": collection,
         "title": stem,
-        "keywords": keywords,
+        "keywords": [],
     }
 
 

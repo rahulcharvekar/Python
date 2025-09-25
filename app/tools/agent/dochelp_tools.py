@@ -28,7 +28,7 @@ def chat_over_file(file: str, query: str) -> str:
 def list_indexed_docs_db(agent: str = "DocHelp") -> str:
     """
     List DocHelp documents persisted in the generic ingestion DB.
-    Returns { documents: [{file, title, vector_collection, keywords_count, updated_at}, ...] }.
+    Returns { documents: [{file, title, vector_collection, updated_at}, ...] }.
     """
     try:
         rows = dochelp_service.list_indexed_docs(agent)

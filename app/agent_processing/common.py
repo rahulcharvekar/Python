@@ -1,4 +1,4 @@
-from typing import List, Optional,Sequence
+from typing import List, Optional, Sequence
 
 from app.agents.agent_factory import build_agent
 
