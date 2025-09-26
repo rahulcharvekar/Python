@@ -2,10 +2,12 @@ from typing import Dict
 
 from .base import AgentHandler
 from .handlers.doc_help import DocHelpHandler
+from .handlers.recruiter import RecruiterHandler
 
 
 _HANDLERS: Dict[str, AgentHandler] = {
     "dochelp": DocHelpHandler(),
+    "recruiter": RecruiterHandler(),
 }
 
 

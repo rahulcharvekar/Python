@@ -1,6 +1,6 @@
 # api/upload_file.py
 
-from fastapi import APIRouter, UploadFile, File, BackgroundTasks, Query
+from fastapi import APIRouter, UploadFile, File, BackgroundTasks
 from pathlib import Path
 from app.services.generic import upload_service
 from app.core.config import settings
@@ -76,15 +76,15 @@ def _index_and_enrich(agent: str, file_name: str) -> None:
     dochelp_service.ingest_document(file_name, agent=agent_name)
 
 
-@router.post("/simple")
-async def simple_upload(
+@router.post("/{agent}")
+async def upload_for_agent(
+    agent: str,
     file: UploadFile = File(...),
     background_tasks: BackgroundTasks = None,
-    agent: str | None = Query(default=None, description="Optional agent name to associate this file with"),
 ) -> dict:
     """
-    Simple, UI-friendly upload endpoint. Saves and registers the file, and returns
-    structured JSON with status and identifiers.
+    Upload endpoint scoped to a specific agent. Saves and registers the file, then
+    returns structured JSON with status and identifiers.
 
     Multipart form field name: `file`.
     """
@@ -112,16 +112,10 @@ async def simple_upload(
     # Eager indexing in background to minimize first-chat latency and repeated vectorization
     try:
         if background_tasks is not None:
-            if agent:
-                background_tasks.add_task(_index_and_enrich, agent, file.filename)
-            else:
-                background_tasks.add_task(_ensure_index, file.filename)
+            background_tasks.add_task(_index_and_enrich, agent, file.filename)
         else:
             # Fallback: run inline if BackgroundTasks not provided
-            if agent:
-                _index_and_enrich(agent, file.filename)
-            else:
-                _ensure_index(file.filename)
+            _index_and_enrich(agent, file.filename)
     except Exception as e:
         logger.warning("Failed to schedule eager indexing for %s: %s", file.filename, e)
     return {

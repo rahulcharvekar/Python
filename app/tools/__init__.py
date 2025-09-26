@@ -5,12 +5,14 @@ from typing import List, Dict
 from .generic import (
     initialize_insights,
     check_file_ready,
-    build_context,
-    normalize_query,
-    reindex_file,
     list_agent_files,
 )
 from .agent.dochelp_tools import chat_over_file, list_indexed_docs_db
+from .agent.recruiter_tools import (
+    translate_job_description,
+    search_recruiter_candidates,
+    chat_over_profile,
+)
 
 
 # Central registry of all available tools for agents to use.
@@ -20,10 +22,10 @@ ALL_TOOLS = [
     initialize_insights,
     list_agent_files,
     check_file_ready,
-    build_context,
-    normalize_query,
-    reindex_file,
     list_indexed_docs_db,
+    translate_job_description,
+    search_recruiter_candidates,
+    chat_over_profile,
 ]
 
 

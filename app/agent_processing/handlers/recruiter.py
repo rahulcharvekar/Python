@@ -6,6 +6,7 @@ from typing import List
 from ..base import AgentHandler, AgentContext, AgentResult
 from ..common import run_agent
 from app.services.generic import ingestion_db
+from app.services.agents import recruiter_service
 
 
 class RecruiterHandler(AgentHandler):
@@ -35,29 +36,50 @@ class RecruiterHandler(AgentHandler):
             if isinstance(file_name, str):
                 files_for_agent.append(file_name)
 
-        example_files = ", ".join(files_for_agent[:5])
-        if len(files_for_agent) > 5:
-            example_files += " ..."
+        file_override = (ctx.filename or "").strip()
+        prompt_vars = {
+            "candidate_count": str(len(files_for_agent)),
+            "candidate_files": ", ".join(files_for_agent[:5]) + (" ..." if len(files_for_agent) > 5 else ""),
+            "doc_file": "",
+            "original_query": description,
+        }
+
+        if file_override:
+            if file_override not in files_for_agent:
+                options = ", ".join(files_for_agent[:10]) + (" ..." if len(files_for_agent) > 10 else "")
+                message = (
+                    f"File not found for recruiter agent: {file_override}."
+                    + (f" Options: {options}" if options else "")
+                )
+                return AgentResult(response={"error": message}, session_id=ctx.session_id, files=[])
+
+            prompt_vars["doc_file"] = file_override
+
+        extra_tools = list(ctx.extra_tools or [])
 
         agent_output = run_agent(
             agent_name=ctx.agent_name,
             input_text=description,
-            extra_tools=ctx.extra_tools,
+            extra_tools=extra_tools,
             session_id=ctx.session_id,
-            prompt_vars={
-                "candidate_count": str(len(files_for_agent)),
-                "candidate_files": example_files or "none",
-            },
+            prompt_vars=prompt_vars,
         )
 
         response_text = agent_output if isinstance(agent_output, str) else str(agent_output)
 
+        if file_override:
+            return AgentResult(response=response_text, session_id=ctx.session_id, files=[file_override])
+
         try:
             payload = json.loads(response_text)
         except json.JSONDecodeError:
+            translated_text, translated_flag = recruiter_service.translate_description(description)
+            matches = recruiter_service.search_candidates(translated_text)
             payload = {
-                "matches": [],
-                "message": "Unable to parse agent response as JSON.",
+                "query": translated_text,
+                "translated": translated_flag,
+                "matches": [match.as_dict() for match in matches],
+                "fallback": True,
                 "raw_response": response_text,
             }
 

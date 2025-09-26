@@ -41,7 +41,7 @@ def list_available_agents() -> Dict[str, Any]:
     return {"agents": list_agents()}
 
 
-@router.post("/{agent}/query")
+@router.post("/query/{agent}")
 def run_agent_by_path(agent: str, query: AgentPathQuery) -> Dict[str, Any]:
     err = _validate_text(query.input)
     if err:
@@ -60,7 +60,7 @@ def run_agent_by_path(agent: str, query: AgentPathQuery) -> Dict[str, Any]:
     )
 
 
-@router.get("/{agent}/listfiles")
+@router.get("/listfiles/{agent}")
 def list_agent_files(agent: str) -> Dict[str, Any]:
     resolved = _resolve_agent_name(agent)
     if not resolved:

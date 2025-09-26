@@ -46,6 +46,7 @@ def handle_agent_files(*, agent: Optional[str]) -> Dict[str, Any]:
     name = (agent or "dochelp").lower()
     allowed_by_agent = {
         "dochelp": {".pdf", ".csv", ".txt", ".md", ".docx", ".doc"},
+        "recruiter": {".pdf", ".docx", ".doc", ".txt"},
     }
     allowed = allowed_by_agent.get(name, {".pdf", ".csv", ".txt", ".md", ".docx", ".doc"})
     try:
