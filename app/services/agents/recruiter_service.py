@@ -114,6 +114,11 @@ def search_candidates(query: str, *, max_results: int = 5) -> List[CandidateMatc
             continue
 
         if not hits:
+            logger.debug(
+                "Recruiter search found no hits above threshold | file=%s | query=%s",
+                file,
+                query,
+            )
             continue
 
         top_doc, top_meta, top_score = hits[0]
@@ -139,6 +144,11 @@ def search_candidates(query: str, *, max_results: int = 5) -> List[CandidateMatc
         )
 
     matches.sort(key=lambda m: m.score, reverse=True)
+    logger.info(
+        "Recruiter search candidates completed | query=%.40s | results=%d",
+        query,
+        len(matches),
+    )
     return matches[:max_results]
 
 

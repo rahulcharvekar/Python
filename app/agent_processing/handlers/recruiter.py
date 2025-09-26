@@ -7,6 +7,7 @@ from ..base import AgentHandler, AgentContext, AgentResult
 from ..common import run_agent
 from app.services.generic import ingestion_db
 from app.services.agents import recruiter_service
+from app.utils.Logging.logger import logger
 
 
 class RecruiterHandler(AgentHandler):
@@ -28,6 +29,7 @@ class RecruiterHandler(AgentHandler):
             message = (
                 "No candidate documents are available. Upload resumes for the recruiter agent and try again."
             )
+            logger.info("Recruiter handler aborting: no documents indexed for agent '%s'", ctx.agent_name)
             return AgentResult(response={"error": message}, session_id=ctx.session_id, files=[])
 
         files_for_agent = []
@@ -51,6 +53,11 @@ class RecruiterHandler(AgentHandler):
                     f"File not found for recruiter agent: {file_override}."
                     + (f" Options: {options}" if options else "")
                 )
+                logger.warning(
+                    "Recruiter handler received unknown file override | agent=%s | filename=%s",
+                    ctx.agent_name,
+                    file_override,
+                )
                 return AgentResult(response={"error": message}, session_id=ctx.session_id, files=[])
 
             prompt_vars["doc_file"] = file_override
@@ -68,11 +75,20 @@ class RecruiterHandler(AgentHandler):
         response_text = agent_output if isinstance(agent_output, str) else str(agent_output)
 
         if file_override:
+            logger.info(
+                "Recruiter profile chat completed via tool routing | file=%s | session=%s",
+                file_override,
+                ctx.session_id,
+            )
             return AgentResult(response=response_text, session_id=ctx.session_id, files=[file_override])
 
         try:
             payload = json.loads(response_text)
         except json.JSONDecodeError:
+            logger.warning(
+                "Recruiter agent returned non-JSON output; applying fallback | session=%s",
+                ctx.session_id,
+            )
             translated_text, translated_flag = recruiter_service.translate_description(description)
             matches = recruiter_service.search_candidates(translated_text)
             payload = {
@@ -91,5 +107,9 @@ class RecruiterHandler(AgentHandler):
                     file_name = item.get("file")
                     if isinstance(file_name, str):
                         files.append(file_name)
-
+        logger.info(
+            "Recruiter match workflow responded | session=%s | matches=%d",
+            ctx.session_id,
+            len(files),
+        )
         return AgentResult(response=payload, session_id=ctx.session_id, files=files)
